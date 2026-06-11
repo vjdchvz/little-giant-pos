@@ -1,0 +1,15 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@components/*": ["./src/components/*"],
+      "@models/*": ["./src/models/*"],
+      "@viewmodels/*": ["./src/viewmodels/*"],
+      "@services/*": ["./src/services/*"],
+      "@theme": ["./src/theme/index.ts"],
+      "@store": ["./src/store/index.ts"],
+      "@types/*": ["./src/types/*"]
+    }
+  }
+}

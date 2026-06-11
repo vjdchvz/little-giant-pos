@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Little Giant POS",
+    "slug": "little-giant-pos",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#D85A30"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.vjdechavez.littlegiantpos"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#D85A30"
+      },
+      "package": "com.vjdechavez.littlegiantpos"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "db031bf9-5a59-4245-a71f-74f89154c3ec"
+      }
+    },
+    "plugins": [
+      "expo-font",
+      "expo-splash-screen"
+    ],
+    "owner": "vjdchvz21"
+  }
+}
