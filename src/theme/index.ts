@@ -2,11 +2,16 @@
 // Little Giant POS — Brand Theme
 
 export const Colors = {
-  // Brand
-  primary:     '#D85A30',  // Coral fire — main brand color
-  primaryDark: '#993C1D',
-  primaryLight:'#F0997B',
-  primaryBg:   '#FAECE7',
+  // Brand — Little Giant Store (navy + gold)
+  primary:     '#1B3060',  // Navy blue (logo background)
+  primaryDark: '#0F1E3F',
+  primaryLight:'#2E4F99',
+  primaryBg:   '#E8EDF7',
+
+  // Accent gold
+  accent:      '#E8A020',
+  accentDark:  '#B87A10',
+  accentLight: '#FDF0D5',
 
   // Success / money
   success:     '#1D9E75',
@@ -23,26 +28,26 @@ export const Colors = {
 
   // Neutrals
   black:       '#1a1a1a',
-  gray900:     '#2C2C2A',
-  gray700:     '#5F5E5A',
-  gray500:     '#888780',
-  gray300:     '#D3D1C7',
-  gray100:     '#F1EFE8',
+  gray900:     '#1B3060',
+  gray700:     '#4A5568',
+  gray500:     '#718096',
+  gray300:     '#CBD5E0',
+  gray100:     '#F0EDE6',
   white:       '#FFFFFF',
 
-  // Backgrounds
+  // Backgrounds — warm cream from logo
   bgPrimary:   '#FFFFFF',
-  bgSecondary: '#F7F6F2',
-  bgTertiary:  '#F1EFE8',
+  bgSecondary: '#F5F0E8',
+  bgTertiary:  '#EDE8DF',
 
   // Text
-  textPrimary:   '#1a1a1a',
-  textSecondary: '#5F5E5A',
-  textMuted:     '#888780',
+  textPrimary:   '#1B3060',
+  textSecondary: '#4A5568',
+  textMuted:     '#718096',
 
   // Border
-  border:      'rgba(0,0,0,0.1)',
-  borderStrong:'rgba(0,0,0,0.2)',
+  border:      'rgba(27,48,96,0.12)',
+  borderStrong:'rgba(27,48,96,0.25)',
 };
 
 export const Typography = {

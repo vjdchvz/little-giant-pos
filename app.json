@@ -7,9 +7,9 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#D85A30"
+      "backgroundColor": "#1B3060"
     },
     "ios": {
       "supportsTablet": false,
@@ -18,7 +18,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#D85A30"
+        "backgroundColor": "#1B3060"
       },
       "package": "com.vjdechavez.littlegiantpos"
     },
