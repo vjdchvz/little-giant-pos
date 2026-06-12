@@ -8,7 +8,7 @@ import { Colors, Typography, Spacing, Radius } from '../../theme';
 export default function OrderSuccessScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { order } = route.params;
+  const { order, change } = route.params;
   const scale = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -36,6 +36,12 @@ export default function OrderSuccessScreen() {
             <Text style={styles.receiptLabel}>Items</Text>
             <Text style={styles.receiptVal}>{order.items.reduce((s:number,i:any)=>s+i.qty,0)}</Text>
           </View>
+          {order.payment_method === 'cash' && change != null && change >= 0 && (
+            <View style={[styles.receiptRow, styles.changeRow]}>
+              <Text style={styles.changeLabel}>Sukli</Text>
+              <Text style={styles.changeVal}>₱{Number(change).toFixed(2)}</Text>
+            </View>
+          )}
         </View>
         <TouchableOpacity style={styles.newOrderBtn} onPress={() => navigation.replace('Menu')} activeOpacity={0.85}>
           <Ionicons name="add-circle-outline" size={20} color={Colors.white} />
@@ -56,6 +62,9 @@ const styles = StyleSheet.create({
   receiptRow:   { flexDirection:'row', justifyContent:'space-between' },
   receiptLabel: { fontSize: Typography.sm, color: Colors.textSecondary },
   receiptVal:   { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.textPrimary },
+  changeRow:    { borderTopWidth: 0.5, borderTopColor: Colors.border, paddingTop: Spacing.md, marginTop: Spacing.xs },
+  changeLabel:  { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.success },
+  changeVal:    { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.success },
   newOrderBtn:  { backgroundColor: Colors.primary, borderRadius: Radius.lg, flexDirection:'row', alignItems:'center', gap: Spacing.sm, paddingHorizontal: Spacing.xxl, paddingVertical: Spacing.md + 2, marginTop: Spacing.md },
   newOrderText: { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.white },
 });

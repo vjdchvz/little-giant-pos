@@ -39,6 +39,19 @@ export const menuAPI = {
     return db.getAllAsync('SELECT * FROM categories ORDER BY sort_order');
   },
 
+  addItem: async (data: { name: string; price: number; emoji: string; category_id: number | null }): Promise<void> => {
+    const db = await getDB();
+    await db.runAsync(
+      'INSERT INTO menu_items (name, price, emoji, category_id, is_available, is_archived) VALUES (?, ?, ?, ?, 1, 0)',
+      [data.name, data.price, data.emoji, data.category_id]
+    );
+  },
+
+  deleteItem: async (id: number): Promise<void> => {
+    const db = await getDB();
+    await db.runAsync('UPDATE menu_items SET is_archived = 1 WHERE id = ?', [id]);
+  },
+
   updateItem: async (id: number, data: Partial<MenuItem>): Promise<void> => {
     const db = await getDB();
     const fields: string[] = [];
