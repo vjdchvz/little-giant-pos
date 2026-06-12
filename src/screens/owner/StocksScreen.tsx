@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
 import { useStockStore } from '../../store';
-import { stockAPI } from '../../services/api';
+import { stockAPI } from '../../services/localApi';
 import { Ingredient } from '../../types';
 
 // ─── Mock fallback ───────────────────────────────────────────────────────────

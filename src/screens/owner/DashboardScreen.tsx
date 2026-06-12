@@ -12,7 +12,7 @@ import { format } from 'date-fns';
 
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
 import { useDashboardStore } from '../../store';
-import { reportsAPI, ordersAPI } from '../../services/api';
+import { reportsAPI, ordersAPI } from '../../services/localApi';
 import { DailySummary, Order, TopItem, PaymentMethod } from '../../types';
 
 const SCREEN_W = Dimensions.get('window').width;

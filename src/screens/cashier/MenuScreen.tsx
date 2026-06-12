@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
 import { useCartStore, useMenuStore } from '../../store';
-import { menuAPI } from '../../services/api';
+import { menuAPI } from '../../services/localApi';
 import { MenuItem } from '../../types';
 
 function MenuCard({ item, onPress }: { item: MenuItem; onPress: () => void }) {

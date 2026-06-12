@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
-import { menuAPI } from '../../services/api';
+import { menuAPI } from '../../services/localApi';
 import { MenuItem } from '../../types';
 
 // ─── Section wrapper ─────────────────────────────────────────────────────────
@@ -145,7 +145,7 @@ export default function SettingsScreen() {
   };
 
   const handleSaveItem = async (id: number, data: Partial<MenuItem>) => {
-    // API call would go here — optimistic update
+    await menuAPI.updateItem(id, data);
     setMenuItems(prev => prev.map(m => m.id === id ? { ...m, ...data } : m));
   };
 

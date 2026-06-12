@@ -10,7 +10,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
 import { useCartStore, useDashboardStore } from '../../store';
-import { ordersAPI } from '../../services/api';
+import { ordersAPI } from '../../services/localApi';
 import { PaymentMethod } from '../../types';
 
 const PAYMENT_METHODS: { id: PaymentMethod; label: string; icon: string; color: string; bg: string }[] = [

@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 const uuid = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
-import { aiAPI } from '../../services/api';
+import { aiAPI } from '../../services/localApi';
 import { AIMessage } from '../../types';
 
 // ─── Quick actions ────────────────────────────────────────────────────────────
