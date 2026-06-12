@@ -19,6 +19,7 @@ import OrderSuccessScreen from '../screens/cashier/OrderSuccessScreen';
 import DashboardScreen from '../screens/owner/DashboardScreen';
 import StocksScreen from '../screens/owner/StocksScreen';
 import SettingsScreen from '../screens/owner/SettingsScreen';
+import OrderHistoryScreen from '../screens/owner/OrderHistoryScreen';
 
 import { useStockStore } from '../store';
 
@@ -93,6 +94,16 @@ export default function Navigation() {
                 <TabIcon name="cube-outline" color={color} size={size} />
                 <LowStockBadge count={lowStockItems.length} />
               </View>
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="History"
+          component={OrderHistoryScreen}
+          options={{
+            tabBarLabel: 'History',
+            tabBarIcon: ({ color, size }) => (
+              <TabIcon name="time-outline" color={color} size={size} />
             ),
           }}
         />

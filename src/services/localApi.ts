@@ -1,5 +1,7 @@
-// src/services/localApi.ts — v3: per-item stock + period reports
+// src/services/localApi.ts — v4: void+restore, CSV export, auto-unavailable
 import { getDB } from '../db';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { MenuItem, Order, CartItem, PaymentMethod, DailySummary } from '../types';
 
 export type ReportPeriod = 'day' | 'week' | 'month' | 'year';
@@ -99,10 +101,14 @@ export const ordersAPI = {
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [orderId, item.menu_item_id, item.name, item.price, item.qty, item.subtotal, item.notes ?? null]
         );
-        // Deduct stock directly from menu item
+        // Deduct stock, then auto-mark unavailable if 0
         await db.runAsync(
           'UPDATE menu_items SET stock = MAX(stock - ?, 0) WHERE id = ?',
           [item.qty, item.menu_item_id]
+        );
+        await db.runAsync(
+          'UPDATE menu_items SET is_available = 0 WHERE id = ? AND stock = 0',
+          [item.menu_item_id]
         );
       }
     });
@@ -125,6 +131,20 @@ export const ordersAPI = {
     return result;
   },
 
+  // For history screen — includes voided
+  getHistory: async (limit = 100): Promise<Order[]> => {
+    const db = await getDB();
+    const orders = await db.getAllAsync<any>(
+      `SELECT * FROM orders ORDER BY created_at DESC LIMIT ?`, [limit]
+    );
+    const result: Order[] = [];
+    for (const o of orders) {
+      const items = await db.getAllAsync<any>('SELECT * FROM order_items WHERE order_id = ?', [o.id]);
+      result.push({ ...o, items });
+    }
+    return result;
+  },
+
   getById: async (id: number): Promise<Order> => {
     const db = await getDB();
     const order = await db.getFirstAsync<any>('SELECT * FROM orders WHERE id = ?', [id]);
@@ -134,7 +154,17 @@ export const ordersAPI = {
 
   void: async (id: number, reason: string): Promise<Order> => {
     const db = await getDB();
-    await db.runAsync(`UPDATE orders SET status = 'voided', notes = ? WHERE id = ?`, [`VOID: ${reason}`, id]);
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(`UPDATE orders SET status = 'voided', notes = ? WHERE id = ?`, [`VOID: ${reason}`, id]);
+      // Restore stock for each item
+      const items = await db.getAllAsync<any>('SELECT * FROM order_items WHERE order_id = ?', [id]);
+      for (const oi of items) {
+        await db.runAsync(
+          'UPDATE menu_items SET stock = stock + ?, is_available = 1 WHERE id = ?',
+          [oi.qty, oi.menu_item_id]
+        );
+      }
+    });
     return ordersAPI.getById(id);
   },
 };
@@ -271,6 +301,30 @@ export const reportsAPI = {
       hourly[h].orders += 1;
     }
     return Object.values(hourly);
+  },
+};
+
+export const csvAPI = {
+  exportSales: async (period: ReportPeriod = 'day'): Promise<void> => {
+    const db = await getDB();
+    const where = periodWhere(period);
+    const orders = await db.getAllAsync<any>(
+      `SELECT * FROM orders WHERE status = 'completed' AND ${where} ORDER BY created_at DESC`
+    );
+
+    const rows: string[] = ['Order #,Date,Payment,Total'];
+    for (const o of orders) {
+      const d = new Date(o.created_at).toLocaleString('en-PH');
+      rows.push(`"${o.order_number}","${d}","${o.payment_method}",${o.total}`);
+    }
+    const csv = rows.join('\n');
+    const fileName = `LittleGiant_Sales_${period}_${new Date().toISOString().split('T')[0]}.csv`;
+    const uri = (FileSystem.cacheDirectory ?? FileSystem.documentDirectory) + fileName;
+    await FileSystem.writeAsStringAsync(uri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+    const canShare = await Sharing.isAvailableAsync();
+    if (canShare) {
+      await Sharing.shareAsync(uri, { mimeType: 'text/csv', UTI: 'public.comma-separated-values-text', dialogTitle: 'Export Sales CSV' });
+    }
   },
 };
 

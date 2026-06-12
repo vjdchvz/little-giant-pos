@@ -1,6 +1,4 @@
 // src/store/index.ts
-// Little Giant POS — Global State (Zustand)
-
 import { create } from 'zustand';
 import { CartItem, MenuItem, Order, Ingredient, DailySummary } from '../types';
 
@@ -10,6 +8,7 @@ interface CartStore {
   addItem: (item: MenuItem) => void;
   removeItem: (menu_item_id: number) => void;
   updateQty: (menu_item_id: number, qty: number) => void;
+  setNotes: (menu_item_id: number, notes: string) => void;
   clearCart: () => void;
   total: () => number;
   itemCount: () => number;
@@ -47,23 +46,22 @@ export const useCartStore = create<CartStore>((set, get) => ({
   },
 
   updateQty: (menu_item_id, qty) => {
-    if (qty <= 0) {
-      get().removeItem(menu_item_id);
-      return;
-    }
+    if (qty <= 0) { get().removeItem(menu_item_id); return; }
     set(state => ({
       items: state.items.map(i =>
-        i.menu_item_id === menu_item_id
-          ? { ...i, qty, subtotal: qty * i.price }
-          : i
+        i.menu_item_id === menu_item_id ? { ...i, qty, subtotal: qty * i.price } : i
       ),
     }));
   },
 
+  setNotes: (menu_item_id, notes) => {
+    set(state => ({
+      items: state.items.map(i => i.menu_item_id === menu_item_id ? { ...i, notes } : i),
+    }));
+  },
+
   clearCart: () => set({ items: [] }),
-
   total: () => get().items.reduce((sum, i) => sum + i.subtotal, 0),
-
   itemCount: () => get().items.reduce((sum, i) => sum + i.qty, 0),
 }));
 
@@ -81,14 +79,11 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
   items: [],
   categories: ['All'],
   activeCategory: 'All',
-
   setItems: (items) => {
     const cats = ['All', ...new Set(items.map(i => i.category_name || 'Other'))];
     set({ items, categories: cats });
   },
-
   setActiveCategory: (cat) => set({ activeCategory: cat }),
-
   filteredItems: () => {
     const { items, activeCategory } = get();
     if (activeCategory === 'All') return items;

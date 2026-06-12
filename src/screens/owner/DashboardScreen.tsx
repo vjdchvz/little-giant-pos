@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, RefreshControl,
-  ActivityIndicator, TouchableOpacity, Dimensions,
+  ActivityIndicator, TouchableOpacity, Dimensions, Modal, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,7 +11,7 @@ import { format } from 'date-fns';
 
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
 import { useDashboardStore } from '../../store';
-import { reportsAPI, ordersAPI, ReportPeriod } from '../../services/localApi';
+import { reportsAPI, ordersAPI, csvAPI, ReportPeriod } from '../../services/localApi';
 import { DailySummary, Order, PaymentMethod } from '../../types';
 
 const SCREEN_W = Dimensions.get('window').width;
@@ -67,11 +67,66 @@ function OrderRow({ order }: { order: Order }) {
   );
 }
 
+function EODModal({ summary, period, onClose, onExport }: {
+  summary: DailySummary | null; period: ReportPeriod; onClose: () => void; onExport: () => void;
+}) {
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.eodOverlay}>
+        <View style={styles.eodBox}>
+          <View style={styles.eodHandle} />
+          <Text style={styles.eodTitle}>End of Day Summary</Text>
+          <Text style={styles.eodDate}>{new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' })}</Text>
+
+          <View style={styles.eodMetrics}>
+            <View style={styles.eodMetricItem}>
+              <Text style={styles.eodMetricLabel}>Gross Sales</Text>
+              <Text style={[styles.eodMetricVal, { color: Colors.success }]}>{formatPeso(summary?.gross_sales ?? 0)}</Text>
+            </View>
+            <View style={styles.eodMetricItem}>
+              <Text style={styles.eodMetricLabel}>Total Orders</Text>
+              <Text style={styles.eodMetricVal}>{summary?.total_orders ?? 0}</Text>
+            </View>
+            <View style={styles.eodMetricItem}>
+              <Text style={styles.eodMetricLabel}>Avg Order</Text>
+              <Text style={styles.eodMetricVal}>{formatPeso(summary?.avg_order_value ?? 0)}</Text>
+            </View>
+          </View>
+
+          {(['cash', 'gcash', 'maya'] as PaymentMethod[]).map(m => (
+            <View key={m} style={styles.eodPayRow}>
+              <Text style={[styles.eodPayMethod, { color: PAY_COLORS[m] }]}>{m.toUpperCase()}</Text>
+              <Text style={styles.eodPayAmt}>{formatPeso(summary?.payment_breakdown?.[m] ?? 0)}</Text>
+            </View>
+          ))}
+
+          {summary?.top_items?.[0] && (
+            <View style={styles.eodBest}>
+              <Text style={styles.eodBestLabel}>Best Seller</Text>
+              <Text style={styles.eodBestVal}>{summary.top_items[0].emoji} {summary.top_items[0].name} — {summary.top_items[0].qty_sold} sold</Text>
+            </View>
+          )}
+
+          <TouchableOpacity style={styles.eodExportBtn} onPress={onExport}>
+            <Ionicons name="download-outline" size={16} color={Colors.white} />
+            <Text style={styles.eodExportText}>Export as CSV</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.eodCloseBtn} onPress={onClose}>
+            <Text style={styles.eodCloseText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function DashboardScreen() {
   const { summary, recentOrders, setSummary, setRecentOrders } = useDashboardStore();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [period, setPeriod] = useState<ReportPeriod>('day');
+  const [showEOD, setShowEOD] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async (p: ReportPeriod, isRefresh = false) => {
     if (!isRefresh) setLoading(true);
@@ -93,6 +148,13 @@ export default function DashboardScreen() {
   useEffect(() => { load(period); }, [period]);
 
   const onRefresh = () => { setRefreshing(true); load(period, true); };
+
+  const handleExportCSV = async () => {
+    setExporting(true);
+    try { await csvAPI.exportSales(period); }
+    catch { Alert.alert('Export failed', 'Could not export CSV'); }
+    finally { setExporting(false); }
+  };
 
   const bestSeller = summary?.top_items?.[0];
   const chartItems = (summary?.top_items ?? []).slice(0, 5);
@@ -117,7 +179,28 @@ export default function DashboardScreen() {
           <Text style={styles.storeName}>Little Giant POS</Text>
           <Text style={styles.dateLabel}>{format(new Date(), 'EEEE, MMMM d')}</Text>
         </View>
+        <View style={styles.headerBtns}>
+          <TouchableOpacity style={styles.headerBtn} onPress={() => setShowEOD(true)}>
+            <Ionicons name="document-text-outline" size={16} color={Colors.primary} />
+            <Text style={styles.headerBtnText}>EOD</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerBtn} onPress={handleExportCSV} disabled={exporting}>
+            {exporting
+              ? <ActivityIndicator size="small" color={Colors.primary} />
+              : <Ionicons name="download-outline" size={16} color={Colors.primary} />
+            }
+            <Text style={styles.headerBtnText}>CSV</Text>
+          </TouchableOpacity>
+        </View>
       </View>
+      {showEOD && (
+        <EODModal
+          summary={summary}
+          period={period}
+          onClose={() => setShowEOD(false)}
+          onExport={() => { setShowEOD(false); handleExportCSV(); }}
+        />
+      )}
 
       {/* Period selector */}
       <View style={styles.periodRow}>
@@ -244,9 +327,33 @@ const styles = StyleSheet.create({
   container:         { flex: 1, backgroundColor: Colors.bgSecondary },
   centered:          { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.bgSecondary },
 
-  header:            { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, backgroundColor: Colors.white, borderBottomWidth: 0.5, borderBottomColor: Colors.border },
+  header:            { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, backgroundColor: Colors.white, borderBottomWidth: 0.5, borderBottomColor: Colors.border },
   storeName:         { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.textPrimary },
   dateLabel:         { fontSize: Typography.sm, color: Colors.textMuted, marginTop: 2 },
+  headerBtns:        { flexDirection: 'row', gap: Spacing.sm },
+  headerBtn:         { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primary + '15', paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: Radius.full },
+  headerBtnText:     { fontSize: Typography.xs, fontWeight: Typography.bold, color: Colors.primary },
+
+  // EOD Modal
+  eodOverlay:        { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
+  eodBox:            { backgroundColor: Colors.white, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xl, paddingBottom: Spacing.xxxl },
+  eodHandle:         { width: 36, height: 4, backgroundColor: Colors.gray300, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing.lg },
+  eodTitle:          { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.textPrimary, textAlign: 'center' },
+  eodDate:           { fontSize: Typography.sm, color: Colors.textMuted, textAlign: 'center', marginBottom: Spacing.lg },
+  eodMetrics:        { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.lg },
+  eodMetricItem:     { alignItems: 'center', flex: 1 },
+  eodMetricLabel:    { fontSize: Typography.xs, color: Colors.textMuted },
+  eodMetricVal:      { fontSize: Typography.md, fontWeight: Typography.bold, color: Colors.textPrimary, marginTop: 2 },
+  eodPayRow:         { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Spacing.sm, borderBottomWidth: 0.5, borderBottomColor: Colors.border },
+  eodPayMethod:      { fontSize: Typography.sm, fontWeight: Typography.bold },
+  eodPayAmt:         { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.textPrimary },
+  eodBest:           { marginTop: Spacing.md, padding: Spacing.md, backgroundColor: Colors.bgSecondary, borderRadius: Radius.md },
+  eodBestLabel:      { fontSize: Typography.xs, color: Colors.textMuted },
+  eodBestVal:        { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textPrimary, marginTop: 2 },
+  eodExportBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, marginTop: Spacing.lg, backgroundColor: Colors.primary, borderRadius: Radius.lg, padding: Spacing.md },
+  eodExportText:     { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.white },
+  eodCloseBtn:       { marginTop: Spacing.sm, padding: Spacing.md, alignItems: 'center' },
+  eodCloseText:      { fontSize: Typography.base, color: Colors.textMuted },
 
   periodRow:         { flexDirection: 'row', backgroundColor: Colors.white, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md, gap: Spacing.sm },
   periodBtn:         { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.md, alignItems: 'center', backgroundColor: Colors.bgSecondary },

@@ -125,6 +125,7 @@ export type RootTabParamList = {
   Cashier: undefined;
   Dashboard: undefined;
   Stocks: undefined;
+  History: undefined;
   Settings: undefined;
 };
 

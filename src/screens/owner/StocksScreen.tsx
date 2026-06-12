@@ -11,6 +11,51 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius, Shadow, CATEGORY_COLORS } from '../../theme';
 import { stockAPI, StockItem } from '../../services/localApi';
 
+// ─── Bulk Restock Modal ───────────────────────────────────────────────────────
+function BulkRestockModal({ visible, onClose, onSave }: {
+  visible: boolean; onClose: () => void; onSave: (qty: number) => Promise<void>;
+}) {
+  const [qty, setQty] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    const n = parseInt(qty, 10);
+    if (isNaN(n) || n <= 0) return;
+    setSaving(true);
+    try { await onSave(n); onClose(); setQty(''); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.overlay}>
+        <View style={styles.sheet}>
+          <View style={styles.handle} />
+          <Text style={styles.sheetTitle}>Bulk Restock All Items</Text>
+          <Text style={styles.sheetSub}>Add this many servings to every item</Text>
+          <Text style={styles.inputLabel}>Amount to add</Text>
+          <TextInput
+            style={styles.input}
+            value={qty}
+            onChangeText={setQty}
+            keyboardType="number-pad"
+            autoFocus
+            placeholder="e.g. 10"
+          />
+          <View style={styles.sheetBtns}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.5 }]} onPress={submit} disabled={saving}>
+              {saving ? <ActivityIndicator size="small" color={Colors.white} /> : <Text style={styles.saveText}>Add to All</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 // ─── Set-stock Modal ──────────────────────────────────────────────────────────
 function SetStockModal({
   item, onClose, onSave,
@@ -125,6 +170,7 @@ export default function StocksScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [editingItem, setEditingItem] = useState<StockItem | null>(null);
+  const [showBulkRestock, setShowBulkRestock] = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
@@ -160,6 +206,13 @@ export default function StocksScreen() {
     updateLocal(updated.id, updated.stock);
   };
 
+  const handleBulkRestock = async (qty: number) => {
+    for (const item of items) {
+      await stockAPI.restock(item.id, qty);
+    }
+    await load(true);
+  };
+
   // Group by category
   const sections = React.useMemo(() => {
     const map: Record<string, StockItem[]> = {};
@@ -185,7 +238,13 @@ export default function StocksScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.headerBar}>
         <Text style={styles.screenTitle}>Stocks</Text>
-        <Text style={styles.headerSub}>{items.length} items · {lowCount} low</Text>
+        <View style={styles.headerActions}>
+          <Text style={styles.headerSub}>{items.length} items · {lowCount} low</Text>
+          <TouchableOpacity style={styles.bulkBtn} onPress={() => setShowBulkRestock(true)}>
+            <Ionicons name="refresh-outline" size={14} color={Colors.primary} />
+            <Text style={styles.bulkBtnText}>Bulk Restock</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {lowCount > 0 && (
@@ -225,6 +284,11 @@ export default function StocksScreen() {
         onClose={() => setEditingItem(null)}
         onSave={handleSet}
       />
+      <BulkRestockModal
+        visible={showBulkRestock}
+        onClose={() => setShowBulkRestock(false)}
+        onSave={handleBulkRestock}
+      />
     </SafeAreaView>
   );
 }
@@ -233,9 +297,12 @@ const styles = StyleSheet.create({
   container:    { flex: 1, backgroundColor: Colors.bgSecondary },
   centered:     { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.bgSecondary },
 
-  headerBar:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, backgroundColor: Colors.white, borderBottomWidth: 0.5, borderBottomColor: Colors.border },
-  screenTitle:  { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.textPrimary },
-  headerSub:    { fontSize: Typography.xs, color: Colors.textMuted },
+  headerBar:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, backgroundColor: Colors.white, borderBottomWidth: 0.5, borderBottomColor: Colors.border },
+  screenTitle:   { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.textPrimary },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  headerSub:     { fontSize: Typography.xs, color: Colors.textMuted },
+  bulkBtn:       { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primary + '15', paddingHorizontal: Spacing.sm, paddingVertical: 4, borderRadius: Radius.full },
+  bulkBtnText:   { fontSize: Typography.xs, fontWeight: Typography.bold, color: Colors.primary },
 
   alertBanner:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.warningLight, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.warning + '40' },
   alertText:    { flex: 1, fontSize: Typography.xs, color: Colors.warning, fontWeight: Typography.medium },
