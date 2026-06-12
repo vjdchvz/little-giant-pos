@@ -1,8 +1,8 @@
-// src/services/localApi.ts
-// SQLite-backed API — same interface as api.ts so screens need no changes
-
+// src/services/localApi.ts — v3: per-item stock + period reports
 import { getDB } from '../db';
-import { MenuItem, Ingredient, Order, CartItem, PaymentMethod, DailySummary } from '../types';
+import { MenuItem, Order, CartItem, PaymentMethod, DailySummary } from '../types';
+
+export type ReportPeriod = 'day' | 'week' | 'month' | 'year';
 
 // ─── Menu ────────────────────────────────────────────────────────────────────
 export const menuAPI = {
@@ -13,36 +13,30 @@ export const menuAPI = {
       FROM menu_items m
       LEFT JOIN categories c ON m.category_id = c.id
       WHERE m.is_archived = 0
-      ORDER BY m.category_id, m.id
+      ORDER BY c.sort_order, m.id
     `);
-
-    const items: MenuItem[] = [];
-    for (const row of rows) {
-      const servings = await computeServings(db, row.id);
-      items.push({
-        id: row.id,
-        name: row.name,
-        category_id: row.category_id,
-        category_name: row.category_name,
-        price: row.price,
-        emoji: row.emoji,
-        description: row.description,
-        is_available: row.is_available === 1,
-        servings_left: servings,
-      });
-    }
-    return items;
+    return rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      category_id: row.category_id,
+      category_name: row.category_name ?? 'Uncategorized',
+      price: row.price,
+      emoji: row.emoji ?? '🍽️',
+      description: row.description ?? '',
+      is_available: row.is_available === 1,
+      servings_left: row.stock ?? 0,
+    }));
   },
 
   getCategories: async () => {
     const db = await getDB();
-    return db.getAllAsync('SELECT * FROM categories ORDER BY sort_order');
+    return db.getAllAsync<any>('SELECT * FROM categories ORDER BY sort_order');
   },
 
   addItem: async (data: { name: string; price: number; emoji: string; category_id: number | null }): Promise<void> => {
     const db = await getDB();
     await db.runAsync(
-      'INSERT INTO menu_items (name, price, emoji, category_id, is_available, is_archived) VALUES (?, ?, ?, ?, 1, 0)',
+      'INSERT INTO menu_items (name, price, emoji, category_id, is_available, is_archived, stock) VALUES (?, ?, ?, ?, 1, 0, 1)',
       [data.name, data.price, data.emoji, data.category_id]
     );
   },
@@ -74,21 +68,6 @@ export const menuAPI = {
   },
 };
 
-async function computeServings(db: any, menuItemId: number): Promise<number> {
-  const recipes = await db.getAllAsync<any>(
-    'SELECT r.qty_per_order, i.qty FROM recipes r JOIN ingredients i ON r.ingredient_id = i.id WHERE r.menu_item_id = ?',
-    [menuItemId]
-  );
-  if (recipes.length === 0) return 999;
-  let min = Infinity;
-  for (const r of recipes) {
-    if (r.qty_per_order > 0) {
-      min = Math.min(min, Math.floor(r.qty / r.qty_per_order));
-    }
-  }
-  return min === Infinity ? 0 : min;
-}
-
 // ─── Orders ──────────────────────────────────────────────────────────────────
 export const ordersAPI = {
   create: async (payload: {
@@ -103,12 +82,10 @@ export const ordersAPI = {
     const subtotal = payload.items.reduce((s, i) => s + i.subtotal, 0);
     const total = subtotal - discount;
 
-    // Generate order number
     const count = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) as c FROM orders');
-    const orderNumber = `LG-${((count?.c ?? 0) + 1).toString().padStart(3, '0')}`;
+    const orderNumber = `LG-${((count?.c ?? 0) + 1).toString().padStart(4, '0')}`;
 
     await db.withTransactionAsync(async () => {
-      // Insert order
       const result = await db.runAsync(
         `INSERT INTO orders (order_number, status, payment_method, subtotal, discount, total, cashier_name, notes)
          VALUES (?, 'completed', ?, ?, ?, ?, ?, ?)`,
@@ -117,42 +94,22 @@ export const ordersAPI = {
       const orderId = result.lastInsertRowId;
 
       for (const item of payload.items) {
-        // Insert order item
         await db.runAsync(
           `INSERT INTO order_items (order_id, menu_item_id, name, price, qty, subtotal, notes)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [orderId, item.menu_item_id, item.name, item.price, item.qty, item.subtotal, item.notes ?? null]
         );
-
-        // Deduct ingredients
-        const recipes = await db.getAllAsync<any>(
-          'SELECT * FROM recipes WHERE menu_item_id = ?', [item.menu_item_id]
+        // Deduct stock directly from menu item
+        await db.runAsync(
+          'UPDATE menu_items SET stock = MAX(stock - ?, 0) WHERE id = ?',
+          [item.qty, item.menu_item_id]
         );
-        for (const recipe of recipes) {
-          const ing = await db.getFirstAsync<any>(
-            'SELECT * FROM ingredients WHERE id = ?', [recipe.ingredient_id]
-          );
-          if (!ing) continue;
-          const deduct = recipe.qty_per_order * item.qty;
-          const qtyBefore = ing.qty;
-          const qtyAfter = Math.max(qtyBefore - deduct, 0);
-          await db.runAsync(
-            'UPDATE ingredients SET qty = ?, updated_at = datetime(\'now\',\'localtime\') WHERE id = ?',
-            [qtyAfter, ing.id]
-          );
-          await db.runAsync(
-            `INSERT INTO stock_movements (ingredient_id, type, qty_change, qty_before, qty_after, reference_id, note)
-             VALUES (?, 'sale_deduction', ?, ?, ?, ?, ?)`,
-            [ing.id, -deduct, qtyBefore, qtyAfter, orderId, `Order ${orderNumber}`]
-          );
-        }
       }
     });
 
-    // Return full order
     const order = await db.getFirstAsync<any>('SELECT * FROM orders WHERE order_number = ?', [orderNumber]);
     const items = await db.getAllAsync<any>('SELECT * FROM order_items WHERE order_id = ?', [order.id]);
-    return { ...order, items, created_at: order.created_at };
+    return { ...order, items };
   },
 
   getRecent: async (limit = 20): Promise<Order[]> => {
@@ -163,7 +120,7 @@ export const ordersAPI = {
     const result: Order[] = [];
     for (const o of orders) {
       const items = await db.getAllAsync<any>('SELECT * FROM order_items WHERE order_id = ?', [o.id]);
-      result.push({ ...o, items, is_available: undefined });
+      result.push({ ...o, items });
     }
     return result;
   },
@@ -183,92 +140,83 @@ export const ordersAPI = {
 };
 
 // ─── Stock ───────────────────────────────────────────────────────────────────
+export interface StockItem {
+  id: number;
+  name: string;
+  emoji: string;
+  category_id: number;
+  category_name: string;
+  stock: number;
+  is_available: boolean;
+}
+
 export const stockAPI = {
-  getAll: async (): Promise<Ingredient[]> => {
+  getAll: async (): Promise<StockItem[]> => {
     const db = await getDB();
-    const rows = await db.getAllAsync<any>('SELECT * FROM ingredients ORDER BY name');
-    return rows.map(toIngredient);
+    const rows = await db.getAllAsync<any>(`
+      SELECT m.id, m.name, m.emoji, m.category_id, m.stock, m.is_available,
+             c.name as category_name
+      FROM menu_items m
+      LEFT JOIN categories c ON m.category_id = c.id
+      WHERE m.is_archived = 0
+      ORDER BY c.sort_order, m.name
+    `);
+    return rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      emoji: r.emoji ?? '🍽️',
+      category_id: r.category_id,
+      category_name: r.category_name ?? 'Uncategorized',
+      stock: r.stock ?? 0,
+      is_available: r.is_available === 1,
+    }));
   },
 
-  restock: async (id: number, qty: number, note?: string) => {
+  restock: async (id: number, qty: number): Promise<StockItem> => {
     const db = await getDB();
-    const ing = await db.getFirstAsync<any>('SELECT * FROM ingredients WHERE id = ?', [id]);
-    if (!ing) throw new Error('Not found');
-    const qtyAfter = ing.qty + qty;
-    await db.runAsync(
-      'UPDATE ingredients SET qty = ?, updated_at = datetime(\'now\',\'localtime\') WHERE id = ?',
-      [qtyAfter, id]
-    );
-    await db.runAsync(
-      `INSERT INTO stock_movements (ingredient_id, type, qty_change, qty_before, qty_after, note)
-       VALUES (?, 'restock', ?, ?, ?, ?)`,
-      [id, qty, ing.qty, qtyAfter, note ?? null]
-    );
-    const updated = await db.getFirstAsync<any>('SELECT * FROM ingredients WHERE id = ?', [id]);
-    return toIngredient(updated);
+    await db.runAsync('UPDATE menu_items SET stock = stock + ? WHERE id = ?', [qty, id]);
+    const row = await db.getFirstAsync<any>(`
+      SELECT m.*, c.name as category_name FROM menu_items m
+      LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?`, [id]);
+    return { id: row.id, name: row.name, emoji: row.emoji, category_id: row.category_id, category_name: row.category_name, stock: row.stock, is_available: row.is_available === 1 };
   },
 
-  logWaste: async (id: number, qty: number, reason: string) => {
+  setStock: async (id: number, qty: number): Promise<StockItem> => {
     const db = await getDB();
-    const ing = await db.getFirstAsync<any>('SELECT * FROM ingredients WHERE id = ?', [id]);
-    if (!ing) throw new Error('Not found');
-    const qtyAfter = Math.max(ing.qty - qty, 0);
-    await db.runAsync(
-      'UPDATE ingredients SET qty = ?, updated_at = datetime(\'now\',\'localtime\') WHERE id = ?',
-      [qtyAfter, id]
-    );
-    await db.runAsync(
-      `INSERT INTO stock_movements (ingredient_id, type, qty_change, qty_before, qty_after, note)
-       VALUES (?, 'waste', ?, ?, ?, ?)`,
-      [id, -qty, ing.qty, qtyAfter, reason]
-    );
-    const updated = await db.getFirstAsync<any>('SELECT * FROM ingredients WHERE id = ?', [id]);
-    return toIngredient(updated);
+    await db.runAsync('UPDATE menu_items SET stock = ? WHERE id = ?', [Math.max(0, qty), id]);
+    const row = await db.getFirstAsync<any>(`
+      SELECT m.*, c.name as category_name FROM menu_items m
+      LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?`, [id]);
+    return { id: row.id, name: row.name, emoji: row.emoji, category_id: row.category_id, category_name: row.category_name, stock: row.stock, is_available: row.is_available === 1 };
   },
 
-  adjust: async (id: number, qty: number, note: string) => {
+  logWaste: async (id: number, qty: number): Promise<StockItem> => {
     const db = await getDB();
-    const ing = await db.getFirstAsync<any>('SELECT * FROM ingredients WHERE id = ?', [id]);
-    if (!ing) throw new Error('Not found');
-    const change = qty - ing.qty;
-    await db.runAsync(
-      'UPDATE ingredients SET qty = ?, updated_at = datetime(\'now\',\'localtime\') WHERE id = ?',
-      [qty, id]
-    );
-    await db.runAsync(
-      `INSERT INTO stock_movements (ingredient_id, type, qty_change, qty_before, qty_after, note)
-       VALUES (?, 'adjustment', ?, ?, ?, ?)`,
-      [id, change, ing.qty, qty, note]
-    );
-    const updated = await db.getFirstAsync<any>('SELECT * FROM ingredients WHERE id = ?', [id]);
-    return toIngredient(updated);
+    await db.runAsync('UPDATE menu_items SET stock = MAX(stock - ?, 0) WHERE id = ?', [qty, id]);
+    const row = await db.getFirstAsync<any>(`
+      SELECT m.*, c.name as category_name FROM menu_items m
+      LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?`, [id]);
+    return { id: row.id, name: row.name, emoji: row.emoji, category_id: row.category_id, category_name: row.category_name, stock: row.stock, is_available: row.is_available === 1 };
   },
 };
 
-function toIngredient(row: any): Ingredient {
-  const qty = row.qty;
-  const max = row.max_qty;
-  return {
-    id: row.id,
-    name: row.name,
-    unit: row.unit,
-    qty,
-    max_qty: max,
-    low_threshold: row.low_threshold,
-    cost_per_unit: row.cost_per_unit,
-    stock_pct: max > 0 ? Math.round((qty / max) * 1000) / 10 : 0,
-    is_low: qty <= row.low_threshold,
-  };
+// ─── Reports ─────────────────────────────────────────────────────────────────
+function periodWhere(period: ReportPeriod): string {
+  switch (period) {
+    case 'day':   return `date(created_at) = date('now','localtime')`;
+    case 'week':  return `date(created_at) >= date('now','localtime','-6 days')`;
+    case 'month': return `strftime('%Y-%m', created_at) = strftime('%Y-%m', datetime('now','localtime'))`;
+    case 'year':  return `strftime('%Y', created_at) = strftime('%Y', datetime('now','localtime'))`;
+  }
 }
 
-// ─── Reports ─────────────────────────────────────────────────────────────────
 export const reportsAPI = {
-  getDaily: async (date?: string): Promise<DailySummary> => {
+  getSummary: async (period: ReportPeriod = 'day'): Promise<DailySummary> => {
     const db = await getDB();
-    const target = date ?? new Date().toISOString().split('T')[0];
+    const where = periodWhere(period);
 
     const orders = await db.getAllAsync<any>(
-      `SELECT * FROM orders WHERE status = 'completed' AND date(created_at) = ?`, [target]
+      `SELECT * FROM orders WHERE status = 'completed' AND ${where}`
     );
 
     const grossSales = orders.reduce((s: number, o: any) => s + o.total, 0);
@@ -277,10 +225,10 @@ export const reportsAPI = {
 
     const breakdown = { cash: 0, gcash: 0, maya: 0 } as any;
     for (const o of orders) {
-      if (o.payment_method in breakdown) breakdown[o.payment_method] += o.total;
+      const m = o.payment_method?.toLowerCase();
+      if (m in breakdown) breakdown[m] += o.total;
     }
 
-    // Top items
     const itemStats: Record<number, any> = {};
     for (const o of orders) {
       const items = await db.getAllAsync<any>('SELECT * FROM order_items WHERE order_id = ?', [o.id]);
@@ -295,22 +243,19 @@ export const reportsAPI = {
     }
     const topItems = Object.values(itemStats).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
 
-    const lowCount = await db.getFirstAsync<{ c: number }>(
-      'SELECT COUNT(*) as c FROM ingredients WHERE qty <= low_threshold'
-    );
-
     return {
-      date: target,
+      date: period,
       gross_sales: grossSales,
       total_orders: totalOrders,
       avg_order_value: Math.round(avgOrderValue * 100) / 100,
       top_items: topItems,
       payment_breakdown: breakdown,
-      low_stock_count: lowCount?.c ?? 0,
+      low_stock_count: 0,
     };
   },
 
-  getWeekly: async () => ({ weeks: [] }),
+  // Keep for backward compat
+  getDaily: async (date?: string): Promise<DailySummary> => reportsAPI.getSummary('day'),
 
   getHourly: async (date?: string) => {
     const db = await getDB();
@@ -329,7 +274,6 @@ export const reportsAPI = {
   },
 };
 
-// ai not used — placeholder to avoid import errors
 export const aiAPI = {
   chat: async () => ({ response: '' }),
   generateEOD: async () => ({ report: '' }),

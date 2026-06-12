@@ -102,4 +102,27 @@ export const Shadow = {
   },
 };
 
-export default { Colors, Typography, Spacing, Radius, Shadow };
+export const CATEGORY_COLORS: Record<number, string> = {
+  1:  '#FF6B35', // Street Food
+  2:  '#F4A72A', // Pnoysilogan
+  3:  '#E8923A', // Mojos
+  4:  '#F5C518', // Fries
+  5:  '#4CAF50', // Budget Meal
+  6:  '#E53935', // Wings
+  7:  '#BF360C', // Inasal
+  8:  '#FF8C00', // Golden Noodles
+  9:  '#EC407A', // Siomai
+  10: '#7B1FA2', // Additional
+  11: '#8E24AA', // Milk Shake
+  12: '#F06292', // Ice Cream
+  13: '#1E88E5', // Water
+  14: '#D32F2F', // Softdrinks
+  15: '#5D4037', // Milk Tea
+  16: '#2E7D32', // Tsaí Refresher
+  17: '#4E342E', // Frappe
+  18: '#3E2723', // Iced Coffee
+  19: '#00897B', // Tsaí Fruity
+  20: '#1B5E20', // All Matcha
+};
+
+export default { Colors, Typography, Spacing, Radius, Shadow, CATEGORY_COLORS };

@@ -37,16 +37,11 @@ function SettingRow({ label, value, onPress, icon, last }: {
 }
 
 // ─── Add / Edit Modal ─────────────────────────────────────────────────────────
-const CATEGORIES = [
-  { id: 1, name: 'Silog Meals' },
-  { id: 2, name: 'BBQ & Grilled' },
-  { id: 3, name: 'Snacks' },
-  { id: 4, name: 'Drinks' },
-];
+interface CategoryOption { id: number; name: string; }
 
 interface ItemModalProps {
   visible: boolean;
-  item: MenuItem | null;  // null = add mode
+  item: MenuItem | null;
   onClose: () => void;
   onSave: (data: { name: string; price: number; emoji: string; category_id: number | null }, id?: number) => Promise<void>;
 }
@@ -57,7 +52,12 @@ function ItemModal({ visible, item, onClose, onSave }: ItemModalProps) {
   const [price, setPrice] = useState('');
   const [emoji, setEmoji] = useState('🍽️');
   const [categoryId, setCategoryId] = useState<number | null>(1);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    menuAPI.getCategories().then((cats: any[]) => setCategories(cats)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (visible) {
@@ -100,17 +100,19 @@ function ItemModal({ visible, item, onClose, onSave }: ItemModalProps) {
           <TextInput style={styles.input} value={price} onChangeText={setPrice} keyboardType="numeric" placeholder="0.00" />
 
           <Text style={styles.inputLabel}>Category</Text>
-          <View style={styles.categoryRow}>
-            {CATEGORIES.map(c => (
-              <TouchableOpacity
-                key={c.id}
-                style={[styles.catChip, categoryId === c.id && styles.catChipActive]}
-                onPress={() => setCategoryId(c.id)}
-              >
-                <Text style={[styles.catChipText, categoryId === c.id && styles.catChipTextActive]}>{c.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.xl }}>
+            <View style={styles.categoryRow}>
+              {categories.map(c => (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[styles.catChip, categoryId === c.id && styles.catChipActive]}
+                  onPress={() => setCategoryId(c.id)}
+                >
+                  <Text style={[styles.catChipText, categoryId === c.id && styles.catChipTextActive]}>{c.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
 
           <View style={styles.modalButtons}>
             <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
@@ -157,8 +159,8 @@ export default function SettingsScreen() {
 
   const handleSave = async (data: { name: string; price: number; emoji: string; category_id: number | null }, id?: number) => {
     if (id) {
-      await menuAPI.updateItem(id, data);
-      setMenuItems(prev => prev.map(m => m.id === id ? { ...m, ...data } : m));
+      await menuAPI.updateItem(id, { ...data, category_id: data.category_id ?? undefined });
+      setMenuItems(prev => prev.map(m => m.id === id ? { ...m, ...data, category_id: data.category_id ?? m.category_id } : m));
     } else {
       await menuAPI.addItem(data);
       await loadMenu(); // reload to get new id + category name
