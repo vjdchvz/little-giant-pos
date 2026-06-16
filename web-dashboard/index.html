@@ -242,17 +242,11 @@
     let allStock = [];
     let allMenu = [];
 
-    function localDateStr() {
-      const d = new Date();
-      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    }
-    let today = localDateStr();
+    let todayLabel = new Date().toLocaleDateString();
 
     function isToday(ts) {
       if (!ts) return false;
-      const d = new Date(ts);
-      const s = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-      return s === today;
+      return new Date(ts).toLocaleDateString() === todayLabel;
     }
 
     function setOnline(ok) {
@@ -410,8 +404,8 @@
       renderMenuControl();
     });
 
-    // Refresh today daily
-    setInterval(() => { today = localDateStr(); renderKPIs(); }, 60000);
+    // Refresh today label at midnight
+    setInterval(() => { todayLabel = new Date().toLocaleDateString(); renderKPIs(); }, 60000);
   </script>
 </body>
 </html>
