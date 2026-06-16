@@ -8,6 +8,7 @@ import { getDB } from './src/db';
 import { Colors, Typography, Spacing, Radius } from './src/theme';
 import { stockAPI, StockItem } from './src/services/localApi';
 import { useFirebaseSync } from './src/hooks/useFirebaseSync';
+import { useStockStore } from './src/store';
 
 function LowStockAlert({ items, onClose }: { items: StockItem[]; onClose: () => void }) {
   if (items.length === 0) return null;
@@ -46,27 +47,39 @@ function LowStockAlert({ items, onClose }: { items: StockItem[]; onClose: () => 
 // Inner component so hooks run inside providers
 function AppContent() {
   useFirebaseSync();
-  return <Navigation />;
+  const ingredients = useStockStore(s => s.ingredients);
+  const [alertShown, setAlertShown] = useState(false);
+  const [lowStockItems, setLowStockItems] = useState<StockItem[]>([]);
+  const [showLowStock, setShowLowStock] = useState(false);
+
+  // Show low stock alert once after Firebase sync populates stock (not cold SQLite)
+  useEffect(() => {
+    if (alertShown || ingredients.length === 0) return;
+    const low = (ingredients as any[])
+      .filter(i => (i.current_stock ?? i.qty ?? 0) <= 5)
+      .map(i => ({ id: i.id, name: i.name, emoji: i.emoji ?? '📦', stock: i.current_stock ?? i.qty ?? 0, is_available: (i.current_stock ?? i.qty ?? 0) > 0, category_id: 0, category_name: '' } as any));
+    if (low.length > 0) {
+      setLowStockItems(low);
+      setShowLowStock(true);
+    }
+    setAlertShown(true);
+  }, [ingredients]);
+
+  return (
+    <>
+      <Navigation />
+      {showLowStock && (
+        <LowStockAlert items={lowStockItems} onClose={() => setShowLowStock(false)} />
+      )}
+    </>
+  );
 }
 
 export default function App() {
   const [ready, setReady] = useState(false);
-  const [lowStockItems, setLowStockItems] = useState<StockItem[]>([]);
-  const [showLowStock, setShowLowStock] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      await getDB();
-      try {
-        const all = await stockAPI.getAll();
-        const low = all.filter(i => i.stock <= 5);
-        if (low.length > 0) {
-          setLowStockItems(low);
-          setShowLowStock(true);
-        }
-      } catch { }
-      setReady(true);
-    })();
+    getDB().finally(() => setReady(true));
   }, []);
 
   if (!ready) {
@@ -81,9 +94,6 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AppContent />
-        {showLowStock && (
-          <LowStockAlert items={lowStockItems} onClose={() => setShowLowStock(false)} />
-        )}
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

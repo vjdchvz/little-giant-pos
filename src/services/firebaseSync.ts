@@ -56,10 +56,15 @@ export async function pushStockBulk(items: StockItem[]): Promise<void> {
 }
 
 // ─── Push menu item (availability + price) ───────────────────────────────────
-export async function pushMenuItem(id: number, data: { is_available?: boolean; price?: number; name?: string }): Promise<void> {
+export async function pushMenuItem(id: number, data: { is_available?: boolean; price?: number; name?: string; emoji?: string }): Promise<void> {
   try {
-    await update(ref(db, `pos_menu/${id}`), data);
+    await update(ref(db, `pos_menu/${id}`), { id, ...data });
   } catch (e) { console.warn('[Sync] pushMenuItem failed:', e); }
+}
+
+// ─── Clear all orders (owner reset) ──────────────────────────────────────────
+export async function clearFirebaseOrders(): Promise<void> {
+  await set(ref(db, 'pos_orders'), null);
 }
 
 // ─── Listeners ───────────────────────────────────────────────────────────────

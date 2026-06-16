@@ -10,9 +10,11 @@ async function applyStockToSQLite(items: StockItem[]) {
   try {
     const db = await getDB();
     for (const item of items) {
+      // Derive availability from stock count — never trust stale Firebase is_available
+      const isAvail = item.stock > 0 ? 1 : 0;
       await db.runAsync(
         'UPDATE menu_items SET stock = ?, is_available = ? WHERE id = ?',
-        [item.stock, item.is_available ? 1 : 0, item.id]
+        [item.stock, isAvail, item.id]
       );
     }
   } catch (e) { console.warn('[Sync] applyStock failed:', e); }
@@ -93,7 +95,7 @@ export function useFirebaseSync() {
       applyStockToSQLite(items);
       triggerRefresh(); // tell MenuScreen to reload
       const mapped = items.map(i => ({
-        id: i.id, name: i.name, unit: 'pcs',
+        id: i.id, name: i.name, emoji: i.emoji ?? '📦', unit: 'pcs',
         current_stock: i.stock, min_stock: 5, is_low: i.stock <= 5,
       }));
       setIngredients(mapped as any);

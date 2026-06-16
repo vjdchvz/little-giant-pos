@@ -8,7 +8,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
-import { menuAPI } from '../../services/localApi';
+import { menuAPI, ordersAPI } from '../../services/localApi';
+import { pushMenuItem } from '../../services/firebaseSync';
+import { useDashboardStore } from '../../store';
 import { MenuItem } from '../../types';
 import { useAuthStore } from '../../store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -151,10 +153,40 @@ export default function SettingsScreen() {
     logout();
   };
 
+  const triggerDashRefresh = useDashboardStore(s => s.triggerRefresh);
+  const handleClearSales = () => {
+    Alert.alert(
+      'Clear All Sales Data?',
+      'This permanently deletes ALL orders and sales history on this device and in the cloud. Stock and menu are kept. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Everything', style: 'destructive',
+          onPress: async () => {
+            try {
+              await ordersAPI.clearSalesData();
+              triggerDashRefresh();
+              Alert.alert('Done', 'All sales data has been cleared.');
+            } catch {
+              Alert.alert('Error', 'Failed to clear sales data.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const loadMenu = useCallback(async () => {
     try {
       const data = await menuAPI.getAll();
       setMenuItems(data);
+      // Seed pos_menu in Firebase so web dashboard has menu data
+      data.forEach(item => pushMenuItem(item.id, {
+        is_available: item.is_available,
+        price: item.price,
+        name: item.name,
+        emoji: item.emoji,
+      }));
     } catch { /* non-critical */ }
     finally { setLoading(false); }
   }, []);
@@ -271,6 +303,16 @@ export default function SettingsScreen() {
 
         {/* Session */}
         <Section title="Session">
+          {role === 'owner' && (
+            <TouchableOpacity
+              style={[styles.row, styles.rowBorder]}
+              onPress={handleClearSales}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="trash-bin-outline" size={20} color={Colors.danger} style={{ marginRight: Spacing.md }} />
+              <Text style={[styles.rowLabel, { color: Colors.danger, fontWeight: '600' }]}>Clear All Sales Data</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={[styles.row, { backgroundColor: Colors.dangerLight }]}
             onPress={handleLogout}

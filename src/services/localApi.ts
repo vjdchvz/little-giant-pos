@@ -3,7 +3,7 @@ import { getDB } from '../db';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { MenuItem, Order, CartItem, PaymentMethod, DailySummary } from '../types';
-import { pushOrder, pushVoid, pushStock, pushStockBulk } from './firebaseSync';
+import { pushOrder, pushVoid, pushStock, pushStockBulk, clearFirebaseOrders } from './firebaseSync';
 
 export type ReportPeriod = 'day' | 'week' | 'month' | 'year';
 
@@ -73,6 +73,18 @@ export const menuAPI = {
 
 // ─── Orders ──────────────────────────────────────────────────────────────────
 export const ordersAPI = {
+  // Wipe all sales/orders locally AND in Firebase (owner reset)
+  clearSalesData: async (): Promise<void> => {
+    const db = await getDB();
+    await db.withTransactionAsync(async () => {
+      await db.runAsync('DELETE FROM order_items');
+      await db.runAsync('DELETE FROM orders');
+    });
+    try {
+      await clearFirebaseOrders();
+    } catch (e) { console.warn('[Reset] clearFirebaseOrders failed:', e); }
+  },
+
   create: async (payload: {
     items: CartItem[];
     payment_method: PaymentMethod;
