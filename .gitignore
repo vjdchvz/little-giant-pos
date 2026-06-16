@@ -15,3 +15,7 @@ __pycache__/
 *.pyc
 *.pyo
 backend/.env
+
+# Firebase secrets — never commit
+src/config/firebaseConfig.ts
+web-dashboard/firebase-config.js

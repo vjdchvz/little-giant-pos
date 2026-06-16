@@ -229,20 +229,13 @@
     <div class="last-updated" id="lastUpdated">Never updated</div>
   </main>
 
+  <script src="firebase-config.js"></script>
   <!-- Firebase -->
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
     import { getDatabase, ref, onValue, update, set } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js';
 
-    const app = initializeApp({
-      apiKey: 'AIzaSyD3Q3kH7Pyan5OqoqCzAXtsnm5G7r51Lqc',
-      authDomain: 'little-giant-pos.firebaseapp.com',
-      databaseURL: 'https://little-giant-pos-default-rtdb.asia-southeast1.firebasedatabase.app',
-      projectId: 'little-giant-pos',
-      storageBucket: 'little-giant-pos.appspot.com',
-      messagingSenderId: '123456789',
-      appId: '1:123456789:web:abc123',
-    });
+    const app = initializeApp(window.FIREBASE_CONFIG);
     const db = getDatabase(app);
 
     let allOrders = [];
