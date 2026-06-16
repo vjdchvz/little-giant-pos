@@ -75,18 +75,17 @@ async function applyOrdersToSQLite(orders: Order[]) {
 }
 
 export function useFirebaseSync() {
-  const { setRecentOrders, setSummary, summary } = useDashboardStore();
+  const { setRecentOrders, triggerRefresh: triggerDashRefresh } = useDashboardStore();
   const { setIngredients } = useStockStore();
   const { setItems, triggerRefresh } = useMenuStore();
 
   useEffect(() => {
-    // Live orders → SQLite + dashboard
+    // Live orders → SQLite + dashboard refresh
     const unsubOrders = listenOrders((orders: Order[]) => {
       const completed = orders.filter(o => o.status !== 'voided');
       setRecentOrders(completed.slice(0, 20));
-      const gross = completed.reduce((s, o) => s + (o.total ?? 0), 0);
-      if (summary) setSummary({ ...summary, gross_sales: gross, total_orders: completed.length });
       applyOrdersToSQLite(orders);
+      triggerDashRefresh(); // tell DashboardScreen to reload from SQLite
     });
 
     // Live stock → SQLite + nav badge

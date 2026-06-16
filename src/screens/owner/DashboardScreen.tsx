@@ -122,7 +122,7 @@ function EODModal({ summary, period, onClose, onExport }: {
 }
 
 export default function DashboardScreen() {
-  const { summary, recentOrders, setSummary, setRecentOrders } = useDashboardStore();
+  const { summary, recentOrders, refreshToken, setSummary, setRecentOrders } = useDashboardStore();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [period, setPeriod] = useState<ReportPeriod>('day');
@@ -156,7 +156,7 @@ export default function DashboardScreen() {
     }
   }, [setSummary, setRecentOrders]);
 
-  useEffect(() => { load(period); }, [period]);
+  useEffect(() => { load(period); }, [period, refreshToken]);
 
   const onRefresh = () => { setRefreshing(true); load(period, true); };
 

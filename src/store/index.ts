@@ -127,16 +127,20 @@ export const useStockStore = create<StockStore>((set, get) => ({
 interface DashboardStore {
   summary: DailySummary | null;
   recentOrders: Order[];
+  refreshToken: number;
   setSummary: (summary: DailySummary) => void;
   setRecentOrders: (orders: Order[]) => void;
   addOrder: (order: Order) => void;
+  triggerRefresh: () => void;
 }
 
 export const useDashboardStore = create<DashboardStore>((set) => ({
   summary: null,
   recentOrders: [],
+  refreshToken: 0,
   setSummary: (summary) => set({ summary }),
   setRecentOrders: (orders) => set({ recentOrders: orders }),
+  triggerRefresh: () => set(s => ({ refreshToken: s.refreshToken + 1 })),
   addOrder: (order) => set(state => ({
     recentOrders: [order, ...state.recentOrders].slice(0, 50),
     summary: state.summary ? {
@@ -144,5 +148,6 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
       gross_sales: state.summary.gross_sales + order.total,
       total_orders: state.summary.total_orders + 1,
     } : null,
+    refreshToken: state.refreshToken + 1,
   })),
 }));
