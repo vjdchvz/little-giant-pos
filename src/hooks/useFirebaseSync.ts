@@ -67,7 +67,7 @@ async function applyOrdersToSQLite(orders: Order[]) {
       } else if (order.status === 'voided') {
         await db.runAsync(
           `UPDATE orders SET status = 'voided', notes = ? WHERE order_number = ?`,
-          [order.notes, order.order_number]
+          [order.notes ?? null, order.order_number]
         );
       }
     }

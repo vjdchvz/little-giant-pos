@@ -49,7 +49,6 @@ export default function PINScreen({ onAuth }: Props) {
       <View style={styles.container}>
         <Text style={styles.brand}>🏪 Little Giant POS</Text>
         <Text style={styles.title}>Enter PIN</Text>
-        <Text style={styles.sub}>Cashier: 1234 · Owner: 9999</Text>
 
         {/* PIN dots */}
         <View style={styles.dots}>

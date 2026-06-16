@@ -218,8 +218,8 @@ export default function SettingsScreen() {
           <SettingRow label="Currency" value="PHP (₱)" icon="cash-outline" last />
         </Section>
 
-        {/* Menu Management */}
-        <View style={styles.section}>
+        {/* Menu Management — owner only */}
+        {role === 'owner' && <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Menu Items</Text>
             <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
@@ -260,7 +260,7 @@ export default function SettingsScreen() {
               ))
             )}
           </View>
-        </View>
+        </View>}
 
         {/* About */}
         <Section title="About">

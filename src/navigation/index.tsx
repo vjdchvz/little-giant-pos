@@ -119,18 +119,16 @@ export default function Navigation() {
             }}
           />
         )}
-        {isOwner && (
-          <Tab.Screen
-            name="History"
-            component={OrderHistoryScreen}
-            options={{
-              tabBarLabel: 'History',
-              tabBarIcon: ({ color, size }) => (
-                <TabIcon name="time-outline" color={color} size={size} />
-              ),
-            }}
-          />
-        )}
+        <Tab.Screen
+          name="History"
+          component={OrderHistoryScreen}
+          options={{
+            tabBarLabel: 'History',
+            tabBarIcon: ({ color, size }) => (
+              <TabIcon name="time-outline" color={color} size={size} />
+            ),
+          }}
+        />
         <Tab.Screen
           name="Settings"
           component={SettingsScreen}

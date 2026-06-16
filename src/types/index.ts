@@ -79,6 +79,7 @@ export interface OrderItem {
   qty: number;
   subtotal: number;
   notes?: string;
+  emoji?: string;
 }
 
 // ─── Reports / Analytics ────────────────────

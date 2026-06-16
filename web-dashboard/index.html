@@ -241,7 +241,19 @@
     let allOrders = [];
     let allStock = [];
     let allMenu = [];
-    let today = new Date().toISOString().slice(0, 10);
+
+    function localDateStr() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+    let today = localDateStr();
+
+    function isToday(ts) {
+      if (!ts) return false;
+      const d = new Date(ts);
+      const s = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      return s === today;
+    }
 
     function setOnline(ok) {
       document.getElementById('statusDot').style.background = ok ? 'var(--success)' : 'var(--danger)';
@@ -257,10 +269,6 @@
     function fmtDate(ts) {
       if (!ts) return '—';
       return new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
-    }
-
-    function isToday(ts) {
-      return ts && ts.slice(0, 10) === today;
     }
 
     // ── Orders ─────────────────────────────────────────────────────────
@@ -403,7 +411,7 @@
     });
 
     // Refresh today daily
-    setInterval(() => { today = new Date().toISOString().slice(0, 10); renderKPIs(); }, 60000);
+    setInterval(() => { today = localDateStr(); renderKPIs(); }, 60000);
   </script>
 </body>
 </html>
