@@ -7,7 +7,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
-import { useCartStore, useDashboardStore } from '../../store';
+import { useCartStore, useDashboardStore, useAuthStore } from '../../store';
 import { ordersAPI } from '../../services/localApi';
 import { PaymentMethod } from '../../types';
 
@@ -30,6 +30,7 @@ export default function PaymentScreen() {
   const [loading, setLoading] = useState(false);
   const { items, clearCart } = useCartStore();
   const { addOrder } = useDashboardStore();
+  const { deviceName } = useAuthStore();
 
   const cashAmount = parseFloat(cashReceived) || 0;
   const change = cashAmount - total;
@@ -42,7 +43,7 @@ export default function PaymentScreen() {
     }
     try {
       setLoading(true);
-      const order = await ordersAPI.create({ items, payment_method: payMethod });
+      const order = await ordersAPI.create({ items, payment_method: payMethod, cashier_name: deviceName });
       addOrder(order);
       clearCart();
       navigation.replace('OrderSuccess', { order, change: payMethod === 'cash' ? change : 0 });

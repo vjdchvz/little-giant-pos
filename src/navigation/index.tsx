@@ -1,17 +1,15 @@
 // src/navigation/index.tsx
-// Little Giant POS — Root Navigation
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { Colors, Typography, Spacing } from '../theme';
 import { RootTabParamList, CashierStackParamList } from '../types';
 
-// Screens
 import MenuScreen from '../screens/cashier/MenuScreen';
 import CartScreen from '../screens/cashier/CartScreen';
 import PaymentScreen from '../screens/cashier/PaymentScreen';
@@ -20,8 +18,9 @@ import DashboardScreen from '../screens/owner/DashboardScreen';
 import StocksScreen from '../screens/owner/StocksScreen';
 import SettingsScreen from '../screens/owner/SettingsScreen';
 import OrderHistoryScreen from '../screens/owner/OrderHistoryScreen';
+import PINScreen from '../screens/auth/PINScreen';
 
-import { useStockStore } from '../store';
+import { useStockStore, useAuthStore } from '../store';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 const CashierStack = createStackNavigator<CashierStackParamList>();
@@ -52,6 +51,25 @@ function LowStockBadge({ count }: { count: number }) {
 
 export default function Navigation() {
   const lowStockItems = useStockStore(s => s.lowStockItems());
+  const { role, setAuth } = useAuthStore();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    AsyncStorage.multiGet(['device_role', 'device_name']).then(pairs => {
+      const r = pairs[0][1] as 'cashier' | 'owner' | null;
+      const n = pairs[1][1] ?? 'Device';
+      if (r === 'cashier' || r === 'owner') setAuth(r, n);
+      setChecking(false);
+    });
+  }, []);
+
+  if (checking) return null;
+
+  if (!role) {
+    return <PINScreen onAuth={(r, n) => setAuth(r as 'cashier' | 'owner', n)} />;
+  }
+
+  const isOwner = role === 'owner';
 
   return (
     <NavigationContainer>
@@ -74,39 +92,45 @@ export default function Navigation() {
             ),
           }}
         />
-        <Tab.Screen
-          name="Dashboard"
-          component={DashboardScreen}
-          options={{
-            tabBarLabel: 'Sales',
-            tabBarIcon: ({ color, size }) => (
-              <TabIcon name="bar-chart-outline" color={color} size={size} />
-            ),
-          }}
-        />
-        <Tab.Screen
-          name="Stocks"
-          component={StocksScreen}
-          options={{
-            tabBarLabel: 'Stocks',
-            tabBarIcon: ({ color, size, focused }) => (
-              <View>
-                <TabIcon name="cube-outline" color={color} size={size} />
-                <LowStockBadge count={lowStockItems.length} />
-              </View>
-            ),
-          }}
-        />
-        <Tab.Screen
-          name="History"
-          component={OrderHistoryScreen}
-          options={{
-            tabBarLabel: 'History',
-            tabBarIcon: ({ color, size }) => (
-              <TabIcon name="time-outline" color={color} size={size} />
-            ),
-          }}
-        />
+        {isOwner && (
+          <Tab.Screen
+            name="Dashboard"
+            component={DashboardScreen}
+            options={{
+              tabBarLabel: 'Sales',
+              tabBarIcon: ({ color, size }) => (
+                <TabIcon name="bar-chart-outline" color={color} size={size} />
+              ),
+            }}
+          />
+        )}
+        {isOwner && (
+          <Tab.Screen
+            name="Stocks"
+            component={StocksScreen}
+            options={{
+              tabBarLabel: 'Stocks',
+              tabBarIcon: ({ color, size }) => (
+                <View>
+                  <TabIcon name="cube-outline" color={color} size={size} />
+                  <LowStockBadge count={lowStockItems.length} />
+                </View>
+              ),
+            }}
+          />
+        )}
+        {isOwner && (
+          <Tab.Screen
+            name="History"
+            component={OrderHistoryScreen}
+            options={{
+              tabBarLabel: 'History',
+              tabBarIcon: ({ color, size }) => (
+                <TabIcon name="time-outline" color={color} size={size} />
+              ),
+            }}
+          />
+        )}
         <Tab.Screen
           name="Settings"
           component={SettingsScreen}

@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import * as Haptics from 'expo-haptics';
 import { Colors, Typography, Spacing, Radius, Shadow, CATEGORY_COLORS } from '../../theme';
-import { useCartStore } from '../../store';
+import { useCartStore, useMenuStore } from '../../store';
 import { menuAPI } from '../../services/localApi';
 import { MenuItem } from '../../types';
 
@@ -112,6 +112,7 @@ export default function MenuScreen() {
   const [allItems, setAllItems] = useState<MenuItem[]>([]);
   const [activeCatId, setActiveCatId] = useState<number | null>(null);
   const { addItem, itemCount, total, items: cartItems } = useCartStore();
+  const refreshToken = useMenuStore(s => s.refreshToken);
 
   const loadMenu = useCallback(async () => {
     setLoading(true);
@@ -125,7 +126,7 @@ export default function MenuScreen() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { loadMenu(); }, []);
+  useEffect(() => { loadMenu(); }, [refreshToken]);
 
   const categories = React.useMemo(() => {
     const seen = new Set<number>();

@@ -70,15 +70,18 @@ interface MenuStore {
   items: MenuItem[];
   categories: string[];
   activeCategory: string;
+  refreshToken: number;
   setItems: (items: MenuItem[]) => void;
   setActiveCategory: (cat: string) => void;
   filteredItems: () => MenuItem[];
+  triggerRefresh: () => void;
 }
 
 export const useMenuStore = create<MenuStore>((set, get) => ({
   items: [],
   categories: ['All'],
   activeCategory: 'All',
+  refreshToken: 0,
   setItems: (items) => {
     const cats = ['All', ...new Set(items.map(i => i.category_name || 'Other'))];
     set({ items, categories: cats });
@@ -89,6 +92,22 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
     if (activeCategory === 'All') return items;
     return items.filter(i => i.category_name === activeCategory);
   },
+  triggerRefresh: () => set(s => ({ refreshToken: s.refreshToken + 1 })),
+}));
+
+// ─── Auth Store ───────────────────────────────
+interface AuthStore {
+  role: 'cashier' | 'owner' | null;
+  deviceName: string;
+  setAuth: (role: 'cashier' | 'owner', name: string) => void;
+  logout: () => void;
+}
+
+export const useAuthStore = create<AuthStore>((set) => ({
+  role: null,
+  deviceName: 'Device',
+  setAuth: (role, deviceName) => set({ role, deviceName }),
+  logout: () => set({ role: null, deviceName: 'Device' }),
 }));
 
 // ─── Stock Store ─────────────────────────────

@@ -7,6 +7,7 @@ import Navigation from './src/navigation';
 import { getDB } from './src/db';
 import { Colors, Typography, Spacing, Radius } from './src/theme';
 import { stockAPI, StockItem } from './src/services/localApi';
+import { useFirebaseSync } from './src/hooks/useFirebaseSync';
 
 function LowStockAlert({ items, onClose }: { items: StockItem[]; onClose: () => void }) {
   if (items.length === 0) return null;
@@ -42,6 +43,12 @@ function LowStockAlert({ items, onClose }: { items: StockItem[]; onClose: () => 
   );
 }
 
+// Inner component so hooks run inside providers
+function AppContent() {
+  useFirebaseSync();
+  return <Navigation />;
+}
+
 export default function App() {
   const [ready, setReady] = useState(false);
   const [lowStockItems, setLowStockItems] = useState<StockItem[]>([]);
@@ -50,7 +57,6 @@ export default function App() {
   useEffect(() => {
     (async () => {
       await getDB();
-      // Check for low/zero stock items on launch
       try {
         const all = await stockAPI.getAll();
         const low = all.filter(i => i.stock <= 5);
@@ -74,7 +80,7 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <Navigation />
+        <AppContent />
         {showLowStock && (
           <LowStockAlert items={lowStockItems} onClose={() => setShowLowStock(false)} />
         )}
@@ -84,8 +90,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  splash: { flex: 1, backgroundColor: '#1B3060', alignItems: 'center', justifyContent: 'center' },
-
+  splash:        { flex: 1, backgroundColor: '#1B3060', alignItems: 'center', justifyContent: 'center' },
   alertOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
   alertBox:      { backgroundColor: Colors.white, borderRadius: Radius.xl, padding: Spacing.xl, width: '100%', maxHeight: '80%' },
   alertTitle:    { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.textPrimary, textAlign: 'center', marginBottom: Spacing.xs },

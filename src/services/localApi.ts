@@ -1,8 +1,9 @@
-// src/services/localApi.ts — v4: void+restore, CSV export, auto-unavailable
+// src/services/localApi.ts — v5: Firebase sync layer
 import { getDB } from '../db';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { MenuItem, Order, CartItem, PaymentMethod, DailySummary } from '../types';
+import { pushOrder, pushVoid, pushStock, pushStockBulk } from './firebaseSync';
 
 export type ReportPeriod = 'day' | 'week' | 'month' | 'year';
 
@@ -115,7 +116,9 @@ export const ordersAPI = {
 
     const order = await db.getFirstAsync<any>('SELECT * FROM orders WHERE order_number = ?', [orderNumber]);
     const items = await db.getAllAsync<any>('SELECT * FROM order_items WHERE order_id = ?', [order.id]);
-    return { ...order, items };
+    const fullOrder: Order = { ...order, items };
+    pushOrder(fullOrder); // sync to Firebase (best-effort)
+    return fullOrder;
   },
 
   getRecent: async (limit = 20): Promise<Order[]> => {
@@ -156,7 +159,6 @@ export const ordersAPI = {
     const db = await getDB();
     await db.withTransactionAsync(async () => {
       await db.runAsync(`UPDATE orders SET status = 'voided', notes = ? WHERE id = ?`, [`VOID: ${reason}`, id]);
-      // Restore stock for each item
       const items = await db.getAllAsync<any>('SELECT * FROM order_items WHERE order_id = ?', [id]);
       for (const oi of items) {
         await db.runAsync(
@@ -165,7 +167,9 @@ export const ordersAPI = {
         );
       }
     });
-    return ordersAPI.getById(id);
+    const voided = await ordersAPI.getById(id);
+    pushVoid(voided.order_number, reason); // sync to Firebase
+    return voided;
   },
 };
 
@@ -208,7 +212,9 @@ export const stockAPI = {
     const row = await db.getFirstAsync<any>(`
       SELECT m.*, c.name as category_name FROM menu_items m
       LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?`, [id]);
-    return { id: row.id, name: row.name, emoji: row.emoji, category_id: row.category_id, category_name: row.category_name, stock: row.stock, is_available: row.is_available === 1 };
+    const item: StockItem = { id: row.id, name: row.name, emoji: row.emoji, category_id: row.category_id, category_name: row.category_name, stock: row.stock, is_available: row.is_available === 1 };
+    pushStock(item);
+    return item;
   },
 
   setStock: async (id: number, qty: number): Promise<StockItem> => {
@@ -217,7 +223,9 @@ export const stockAPI = {
     const row = await db.getFirstAsync<any>(`
       SELECT m.*, c.name as category_name FROM menu_items m
       LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?`, [id]);
-    return { id: row.id, name: row.name, emoji: row.emoji, category_id: row.category_id, category_name: row.category_name, stock: row.stock, is_available: row.is_available === 1 };
+    const item: StockItem = { id: row.id, name: row.name, emoji: row.emoji, category_id: row.category_id, category_name: row.category_name, stock: row.stock, is_available: row.is_available === 1 };
+    pushStock(item);
+    return item;
   },
 
   logWaste: async (id: number, qty: number): Promise<StockItem> => {
@@ -226,7 +234,9 @@ export const stockAPI = {
     const row = await db.getFirstAsync<any>(`
       SELECT m.*, c.name as category_name FROM menu_items m
       LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?`, [id]);
-    return { id: row.id, name: row.name, emoji: row.emoji, category_id: row.category_id, category_name: row.category_name, stock: row.stock, is_available: row.is_available === 1 };
+    const item: StockItem = { id: row.id, name: row.name, emoji: row.emoji, category_id: row.category_id, category_name: row.category_name, stock: row.stock, is_available: row.is_available === 1 };
+    pushStock(item);
+    return item;
   },
 };
 

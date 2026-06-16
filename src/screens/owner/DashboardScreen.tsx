@@ -13,6 +13,7 @@ import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
 import { useDashboardStore } from '../../store';
 import { reportsAPI, ordersAPI, csvAPI, ReportPeriod } from '../../services/localApi';
 import { DailySummary, Order, PaymentMethod } from '../../types';
+import { AppState } from 'react-native';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -127,6 +128,16 @@ export default function DashboardScreen() {
   const [period, setPeriod] = useState<ReportPeriod>('day');
   const [showEOD, setShowEOD] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [online, setOnline] = useState(true);
+
+  useEffect(() => {
+    // Simple online check via fetch
+    const check = () => fetch('https://www.google.com', { method: 'HEAD' })
+      .then(() => setOnline(true)).catch(() => setOnline(false));
+    check();
+    const sub = AppState.addEventListener('change', state => { if (state === 'active') check(); });
+    return () => sub.remove();
+  }, []);
 
   const load = useCallback(async (p: ReportPeriod, isRefresh = false) => {
     if (!isRefresh) setLoading(true);
@@ -180,6 +191,8 @@ export default function DashboardScreen() {
           <Text style={styles.dateLabel}>{format(new Date(), 'EEEE, MMMM d')}</Text>
         </View>
         <View style={styles.headerBtns}>
+          <View style={[styles.syncDot, { backgroundColor: online ? '#22C55E' : Colors.gray300 }]} />
+
           <TouchableOpacity style={styles.headerBtn} onPress={() => setShowEOD(true)}>
             <Ionicons name="document-text-outline" size={16} color={Colors.primary} />
             <Text style={styles.headerBtnText}>EOD</Text>
@@ -330,7 +343,8 @@ const styles = StyleSheet.create({
   header:            { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, backgroundColor: Colors.white, borderBottomWidth: 0.5, borderBottomColor: Colors.border },
   storeName:         { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.textPrimary },
   dateLabel:         { fontSize: Typography.sm, color: Colors.textMuted, marginTop: 2 },
-  headerBtns:        { flexDirection: 'row', gap: Spacing.sm },
+  headerBtns:        { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  syncDot:           { width: 8, height: 8, borderRadius: 4 },
   headerBtn:         { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primary + '15', paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: Radius.full },
   headerBtnText:     { fontSize: Typography.xs, fontWeight: Typography.bold, color: Colors.primary },
 

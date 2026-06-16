@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Little Giant POS — Owner Dashboard</title>
+  <style>
+    :root {
+      --navy: #1B3060;
+      --gold: #E8A020;
+      --cream: #F5F0E8;
+      --white: #FFFFFF;
+      --success: #22C55E;
+      --danger: #EF4444;
+      --text: #1A1A2E;
+      --muted: #6B7280;
+      --border: #E5E7EB;
+      --card: #FFFFFF;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--cream); color: var(--text); min-height: 100vh; }
+
+    header {
+      background: var(--navy);
+      color: var(--white);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-logo { font-size: 24px; }
+    .header-title { font-size: 18px; font-weight: 700; }
+    .header-sub { font-size: 12px; opacity: 0.65; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    .status-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+
+    main { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+
+    /* KPI cards */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 28px; }
+    .kpi-card {
+      background: var(--card); border-radius: 16px; padding: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      border-left: 4px solid var(--navy);
+    }
+    .kpi-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
+    .kpi-value { font-size: 28px; font-weight: 800; color: var(--navy); margin: 4px 0; }
+    .kpi-sub { font-size: 12px; color: var(--muted); }
+
+    /* Ticker */
+    .ticker-bar {
+      background: var(--navy);
+      color: var(--white);
+      border-radius: 12px;
+      padding: 12px 20px;
+      margin-bottom: 24px;
+      overflow: hidden;
+      position: relative;
+      height: 44px;
+      display: flex;
+      align-items: center;
+    }
+    .ticker-inner {
+      display: flex;
+      gap: 32px;
+      animation: ticker 30s linear infinite;
+      white-space: nowrap;
+    }
+    @keyframes ticker { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+    .ticker-item { font-size: 13px; opacity: 0.9; }
+    .ticker-item span { color: var(--gold); font-weight: 700; }
+
+    /* Sections */
+    .section-title { font-size: 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
+
+    /* Orders table */
+    .orders-card { background: var(--card); border-radius: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); overflow: hidden; margin-bottom: 28px; }
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: var(--cream); }
+    th { padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
+    td { padding: 12px 16px; border-top: 1px solid var(--border); font-size: 13px; }
+    tr:hover td { background: #F9FAFB; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+    .badge-completed { background: #DCFCE7; color: #16A34A; }
+    .badge-voided { background: #FEE2E2; color: var(--danger); }
+    .badge-cash { background: #E0F2FE; color: #0369A1; }
+    .badge-gcash { background: #E0E7FF; color: #4338CA; }
+    .badge-maya { background: #ECFDF5; color: #059669; }
+    .empty-state { padding: 40px; text-align: center; color: var(--muted); font-size: 14px; }
+
+    /* Stock table */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+    .stock-row { display: flex; align-items: center; padding: 10px 16px; border-top: 1px solid var(--border); gap: 12px; }
+    .stock-row:first-child { border-top: none; }
+    .stock-emoji { font-size: 20px; width: 28px; text-align: center; }
+    .stock-name { flex: 1; font-size: 13px; font-weight: 500; }
+    .stock-qty { font-size: 14px; font-weight: 700; }
+    .stock-qty.low { color: var(--danger); }
+    .stock-qty.ok { color: var(--success); }
+    .stock-bar-wrap { width: 64px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .stock-bar-fill { height: 100%; border-radius: 3px; }
+
+    /* Remote control */
+    .remote-card { background: var(--card); border-radius: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 28px; }
+    .menu-control-row { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); gap: 12px; }
+    .menu-control-row:last-child { border-bottom: none; }
+    .mci-emoji { font-size: 20px; width: 28px; text-align: center; }
+    .mci-name { flex: 1; font-size: 14px; font-weight: 500; }
+    .mci-price { font-size: 13px; color: var(--muted); margin-right: 12px; }
+    .toggle { position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; inset: 0; background: #D1D5DB; border-radius: 12px; transition: .3s;
+    }
+    .toggle-slider:before {
+      content: ''; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px;
+      background: white; border-radius: 50%; transition: .3s;
+    }
+    input:checked + .toggle-slider { background: var(--success); }
+    input:checked + .toggle-slider:before { transform: translateX(20px); }
+
+    .restock-btn {
+      background: var(--navy); color: var(--white); border: none; border-radius: 8px;
+      padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .restock-btn:hover { opacity: 0.85; }
+
+    .last-updated { font-size: 11px; color: var(--muted); text-align: center; margin-top: 12px; }
+
+    .new-order-flash {
+      animation: flash 1s ease-in-out;
+    }
+    @keyframes flash { 0%{background:#FFF9C4} 100%{background:transparent} }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <div class="header-logo">⚓</div>
+      <div>
+        <div class="header-title">Little Giant POS</div>
+        <div class="header-sub">Owner Dashboard · Live</div>
+      </div>
+    </div>
+    <div class="status-row">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Connecting…</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- KPI -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Today's Sales</div>
+        <div class="kpi-value" id="kpiSales">₱0.00</div>
+        <div class="kpi-sub" id="kpiOrders">0 orders</div>
+      </div>
+      <div class="kpi-card" style="border-left-color:var(--gold)">
+        <div class="kpi-label">Last Order</div>
+        <div class="kpi-value" id="kpiLast">—</div>
+        <div class="kpi-sub" id="kpiLastTime">—</div>
+      </div>
+      <div class="kpi-card" style="border-left-color:var(--success)">
+        <div class="kpi-label">Cash Today</div>
+        <div class="kpi-value" id="kpiCash">₱0.00</div>
+        <div class="kpi-sub">via cash payments</div>
+      </div>
+      <div class="kpi-card" style="border-left-color:#007DFE">
+        <div class="kpi-label">GCash / Maya</div>
+        <div class="kpi-value" id="kpiDigital">₱0.00</div>
+        <div class="kpi-sub">digital payments</div>
+      </div>
+    </div>
+
+    <!-- Live ticker -->
+    <div class="ticker-bar" id="tickerBar">
+      <div class="ticker-inner" id="tickerInner">
+        <div class="ticker-item">🔴 Live feed loading…</div>
+        <div class="ticker-item">🔴 Live feed loading…</div>
+      </div>
+    </div>
+
+    <!-- Orders -->
+    <div class="section-title">Recent Orders</div>
+    <div class="orders-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Order #</th>
+            <th>Cashier</th>
+            <th>Items</th>
+            <th>Total</th>
+            <th>Payment</th>
+            <th>Status</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="ordersBody">
+          <tr><td colspan="7" class="empty-state">Loading orders…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Stock + Menu Control -->
+    <div class="grid-2">
+      <!-- Stock levels -->
+      <div>
+        <div class="section-title">Stock Levels</div>
+        <div class="orders-card" id="stockCard">
+          <div class="empty-state">Loading stock…</div>
+        </div>
+      </div>
+
+      <!-- Remote menu control -->
+      <div>
+        <div class="section-title">Menu Control (Remote)</div>
+        <div class="remote-card" id="menuControlCard">
+          <div class="empty-state">Loading menu…</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="last-updated" id="lastUpdated">Never updated</div>
+  </main>
+
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
+    import { getDatabase, ref, onValue, update, set } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js';
+
+    const app = initializeApp({
+      apiKey: 'AIzaSyD3Q3kH7Pyan5OqoqCzAXtsnm5G7r51Lqc',
+      authDomain: 'little-giant-pos.firebaseapp.com',
+      databaseURL: 'https://little-giant-pos-default-rtdb.asia-southeast1.firebasedatabase.app',
+      projectId: 'little-giant-pos',
+      storageBucket: 'little-giant-pos.appspot.com',
+      messagingSenderId: '123456789',
+      appId: '1:123456789:web:abc123',
+    });
+    const db = getDatabase(app);
+
+    let allOrders = [];
+    let allStock = [];
+    let allMenu = [];
+    let today = new Date().toISOString().slice(0, 10);
+
+    function setOnline(ok) {
+      document.getElementById('statusDot').style.background = ok ? 'var(--success)' : 'var(--danger)';
+      document.getElementById('statusText').textContent = ok ? 'Live' : 'Offline';
+    }
+
+    function fmt(ts) {
+      if (!ts) return '—';
+      const d = new Date(ts);
+      return d.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true });
+    }
+
+    function fmtDate(ts) {
+      if (!ts) return '—';
+      return new Date(ts).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+    }
+
+    function isToday(ts) {
+      return ts && ts.slice(0, 10) === today;
+    }
+
+    // ── Orders ─────────────────────────────────────────────────────────
+    function renderOrders() {
+      const tbody = document.getElementById('ordersBody');
+      const sorted = [...allOrders].sort((a, b) => b.created_at > a.created_at ? 1 : -1);
+      if (sorted.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No orders yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = sorted.slice(0, 50).map(o => {
+        const itemsText = (o.items || []).slice(0, 2).map(i => `${i.emoji || ''}${i.name} ×${i.qty}`).join(', ');
+        const more = (o.items || []).length > 2 ? ` +${(o.items||[]).length - 2} more` : '';
+        const payBadge = `badge-${o.payment_method || 'cash'}`;
+        const statusBadge = o.status === 'voided' ? 'badge-voided' : 'badge-completed';
+        return `<tr class="${o._isNew ? 'new-order-flash' : ''}">
+          <td style="font-weight:700">${o.order_number}</td>
+          <td>${o.cashier_name || 'Cashier'}</td>
+          <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${itemsText}${more}</td>
+          <td style="font-weight:700">₱${(o.total||0).toFixed(2)}</td>
+          <td><span class="badge ${payBadge}">${(o.payment_method||'cash').toUpperCase()}</span></td>
+          <td><span class="badge ${statusBadge}">${o.status}</span></td>
+          <td>${fmt(o.created_at)}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function renderKPIs() {
+      const todayOrders = allOrders.filter(o => o.status !== 'voided' && isToday(o.created_at));
+      const gross = todayOrders.reduce((s, o) => s + (o.total || 0), 0);
+      const cash = todayOrders.filter(o => o.payment_method === 'cash').reduce((s, o) => s + (o.total || 0), 0);
+      const digital = todayOrders.filter(o => o.payment_method !== 'cash').reduce((s, o) => s + (o.total || 0), 0);
+      const last = [...todayOrders].sort((a, b) => b.created_at > a.created_at ? 1 : -1)[0];
+
+      document.getElementById('kpiSales').textContent = `₱${gross.toFixed(2)}`;
+      document.getElementById('kpiOrders').textContent = `${todayOrders.length} order${todayOrders.length !== 1 ? 's' : ''} today`;
+      document.getElementById('kpiCash').textContent = `₱${cash.toFixed(2)}`;
+      document.getElementById('kpiDigital').textContent = `₱${digital.toFixed(2)}`;
+      document.getElementById('kpiLast').textContent = last ? `₱${last.total.toFixed(2)}` : '—';
+      document.getElementById('kpiLastTime').textContent = last ? `${last.order_number} · ${fmt(last.created_at)}` : 'No orders yet';
+    }
+
+    function renderTicker() {
+      const sorted = [...allOrders].filter(o => o.status !== 'voided').sort((a, b) => b.created_at > a.created_at ? 1 : -1);
+      if (sorted.length === 0) return;
+      const items = sorted.slice(0, 20).map(o => {
+        const names = (o.items || []).map(i => `${i.emoji || ''}${i.name}`).join(', ');
+        return `<div class="ticker-item">🛒 ${o.order_number} · <span>₱${o.total.toFixed(2)}</span> · ${names} · ${fmt(o.created_at)}</div>`;
+      }).join('');
+      const inner = document.getElementById('tickerInner');
+      inner.innerHTML = items + items; // duplicate for seamless loop
+    }
+
+    // ── Stock ──────────────────────────────────────────────────────────
+    function renderStock() {
+      const card = document.getElementById('stockCard');
+      if (allStock.length === 0) { card.innerHTML = '<div class="empty-state">No stock data.</div>'; return; }
+      const sorted = [...allStock].sort((a, b) => a.stock - b.stock);
+      card.innerHTML = sorted.map(s => {
+        const max = Math.max(...allStock.map(x => x.stock), 50);
+        const pct = Math.min(100, Math.round((s.stock / max) * 100));
+        const isLow = s.stock <= 5;
+        const barColor = isLow ? 'var(--danger)' : 'var(--success)';
+        return `<div class="stock-row">
+          <div class="stock-emoji">${s.emoji || '📦'}</div>
+          <div class="stock-name">${s.name}</div>
+          <div class="stock-bar-wrap"><div class="stock-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
+          <div class="stock-qty ${isLow ? 'low' : 'ok'}">${s.stock}</div>
+          <button class="restock-btn" onclick="restockItem(${s.id}, '${s.name.replace(/'/g,"\\'")}', ${s.stock})">+</button>
+        </div>`;
+      }).join('');
+    }
+
+    // ── Menu Control ───────────────────────────────────────────────────
+    function renderMenuControl() {
+      const card = document.getElementById('menuControlCard');
+      if (allMenu.length === 0) { card.innerHTML = '<div class="empty-state">No menu data.</div>'; return; }
+      card.innerHTML = allMenu.map(m => `
+        <div class="menu-control-row" id="mrow-${m.id}">
+          <div class="mci-emoji">${m.emoji || '🍽️'}</div>
+          <div class="mci-name">${m.name}</div>
+          <div class="mci-price">₱${(m.price||0).toFixed(2)}</div>
+          <label class="toggle">
+            <input type="checkbox" ${m.is_available ? 'checked' : ''} onchange="toggleMenu(${m.id}, this.checked)" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      `).join('');
+    }
+
+    window.toggleMenu = async function(id, isAvailable) {
+      try {
+        await update(ref(db, `pos_menu/${id}`), { is_available: isAvailable });
+      } catch(e) { alert('Failed to update: ' + e.message); }
+    };
+
+    window.restockItem = async function(id, name, current) {
+      const qty = prompt(`Restock "${name}" (current: ${current})\nAdd how many?`);
+      if (!qty) return;
+      const n = parseInt(qty);
+      if (isNaN(n) || n <= 0) return;
+      const newStock = current + n;
+      const stockItem = allStock.find(s => s.id === id);
+      if (!stockItem) return;
+      try {
+        await set(ref(db, `pos_stock/${id}`), { ...stockItem, stock: newStock, is_available: true });
+        alert(`✅ ${name} restocked to ${newStock}`);
+      } catch(e) { alert('Failed: ' + e.message); }
+    };
+
+    // ── Firebase listeners ─────────────────────────────────────────────
+    const knownOrders = new Set();
+
+    onValue(ref(db, 'pos_orders'), snap => {
+      const val = snap.val();
+      allOrders = val ? Object.values(val) : [];
+      allOrders.forEach(o => {
+        if (!knownOrders.has(o.order_number)) {
+          if (knownOrders.size > 0) o._isNew = true;
+          knownOrders.add(o.order_number);
+        }
+      });
+      renderOrders();
+      renderKPIs();
+      renderTicker();
+      setOnline(true);
+      document.getElementById('lastUpdated').textContent = 'Last updated: ' + new Date().toLocaleTimeString('en-PH');
+    }, () => setOnline(false));
+
+    onValue(ref(db, 'pos_stock'), snap => {
+      const val = snap.val();
+      allStock = val ? Object.values(val) : [];
+      renderStock();
+    });
+
+    onValue(ref(db, 'pos_menu'), snap => {
+      const val = snap.val();
+      allMenu = val ? Object.values(val) : [];
+      renderMenuControl();
+    });
+
+    // Refresh today daily
+    setInterval(() => { today = new Date().toISOString().slice(0, 10); renderKPIs(); }, 60000);
+  </script>
+</body>
+</html>

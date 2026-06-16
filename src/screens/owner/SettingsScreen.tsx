@@ -10,6 +10,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
 import { menuAPI } from '../../services/localApi';
 import { MenuItem } from '../../types';
+import { useAuthStore } from '../../store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─── Section ─────────────────────────────────────────────────────────────────
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -142,6 +144,12 @@ export default function SettingsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [togglingId, setTogglingId] = useState<number | null>(null);
+  const { role, deviceName, logout } = useAuthStore();
+
+  const handleLogout = async () => {
+    await AsyncStorage.multiRemove(['device_role', 'device_name']);
+    logout();
+  };
 
   const loadMenu = useCallback(async () => {
     try {
@@ -256,8 +264,21 @@ export default function SettingsScreen() {
 
         {/* About */}
         <Section title="About">
-          <SettingRow label="App Version" value="0.1.0" icon="information-circle-outline" />
+          <SettingRow label="App Version" value="1.0.1" icon="information-circle-outline" />
+          <SettingRow label="Logged in as" value={`${deviceName} (${role ?? '?'})`} icon="person-outline" />
           <SettingRow label="Built by" value="VJ Dechavez" icon="code-slash-outline" last />
+        </Section>
+
+        {/* Session */}
+        <Section title="Session">
+          <TouchableOpacity
+            style={[styles.row, { backgroundColor: Colors.dangerLight }]}
+            onPress={handleLogout}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="log-out-outline" size={20} color={Colors.danger} style={{ marginRight: Spacing.md }} />
+            <Text style={[styles.rowLabel, { color: Colors.danger, fontWeight: '600' }]}>Switch Account / Logout</Text>
+          </TouchableOpacity>
         </Section>
 
       </ScrollView>

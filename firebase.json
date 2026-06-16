@@ -1,0 +1,7 @@
+{
+  "hosting": {
+    "public": "web-dashboard",
+    "ignore": ["firebase.json", "**/.*"],
+    "rewrites": [{ "source": "**", "destination": "/index.html" }]
+  }
+}
