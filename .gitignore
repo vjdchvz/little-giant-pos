@@ -20,3 +20,4 @@ backend/.env
 src/config/firebaseConfig.ts
 web-dashboard/firebase-config.js
 *.apk
+.firebase/
