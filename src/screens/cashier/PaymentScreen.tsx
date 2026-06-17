@@ -8,7 +8,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
 import { useCartStore, useDashboardStore, useAuthStore } from '../../store';
-import { ordersAPI } from '../../services/localApi';
+import { ordersAPI, InsufficientStockError } from '../../services/localApi';
 import { PaymentMethod } from '../../types';
 
 const PAYMENT_METHODS: { id: PaymentMethod; label: string; icon: string; color: string; bg: string }[] = [
@@ -47,19 +47,13 @@ export default function PaymentScreen() {
       addOrder(order);
       clearCart();
       navigation.replace('OrderSuccess', { order, change: payMethod === 'cash' ? change : 0 });
-    } catch {
-      const mockOrder = {
-        id: Date.now(),
-        order_number: `LG-${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}`,
-        status: 'completed' as const,
-        payment_method: payMethod,
-        subtotal: total, discount: 0, total,
-        items: items.map((i, idx) => ({ id: idx, order_id: 0, menu_item_id: i.menu_item_id, name: i.name, price: i.price, qty: i.qty, subtotal: i.subtotal })),
-        created_at: new Date().toISOString(),
-      };
-      addOrder(mockOrder);
-      clearCart();
-      navigation.replace('OrderSuccess', { order: mockOrder, change: payMethod === 'cash' ? change : 0 });
+    } catch (e: any) {
+      // DB is source of truth — never complete a sale that fails stock validation
+      if (e instanceof InsufficientStockError || e?.name === 'InsufficientStockError') {
+        Alert.alert('Hindi sapat ang stock', e.message);
+      } else {
+        Alert.alert('Hindi natuloy ang order', 'May error sa pag-save. Subukan ulit.');
+      }
     } finally {
       setLoading(false);
     }

@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList,
-  SafeAreaView, StatusBar, ActivityIndicator, useWindowDimensions,
+  SafeAreaView, StatusBar, ActivityIndicator, useWindowDimensions, Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,14 +25,25 @@ const CAT_EMOJI: Record<number, string> = {
 // ─── Menu Card ────────────────────────────────────────────────────────────────
 function MenuCard({ item, onPress, isLandscape }: { item: MenuItem; onPress: () => void; isLandscape: boolean }) {
   const qtyInCart = useCartStore(s => s.items.find(i => i.menu_item_id === item.id)?.qty ?? 0);
-  const unavailable = !item.is_available || (item.servings_left !== undefined && item.servings_left <= 0);
+  const stock = item.servings_left ?? 0;
+  const soldOut = !item.is_available || stock <= 0;
+  const maxedOut = qtyInCart >= stock;     // already have all available stock in cart
   const catColor = CATEGORY_COLORS[item.category_id ?? 0] ?? Colors.primary;
+  const stockColor = stock <= 0 ? Colors.danger : stock <= 5 ? Colors.warning : Colors.success;
+
+  const handlePress = () => {
+    if (qtyInCart >= stock) {
+      Alert.alert('Out of stock', `Only ${stock} ${item.name} available.`);
+      return;
+    }
+    onPress();
+  };
 
   return (
     <TouchableOpacity
-      style={[styles.card, unavailable && styles.cardUnavailable, isLandscape && styles.cardLandscape]}
-      onPress={onPress}
-      disabled={unavailable}
+      style={[styles.card, soldOut && styles.cardUnavailable, isLandscape && styles.cardLandscape]}
+      onPress={handlePress}
+      disabled={soldOut}
       activeOpacity={0.75}
     >
       <View style={[styles.cardHeader, { backgroundColor: catColor + '22' }, isLandscape && styles.cardHeaderLandscape]}>
@@ -43,14 +54,20 @@ function MenuCard({ item, onPress, isLandscape }: { item: MenuItem; onPress: () 
         <Text style={[styles.cardPrice, isLandscape && styles.cardPriceLandscape]}>₱{item.price.toFixed(0)}</Text>
       </View>
 
-      {item.servings_left !== undefined && item.servings_left <= 5 && item.servings_left > 0 && (
-        <View style={styles.lowBadge}>
-          <Text style={styles.lowBadgeText}>{item.servings_left} left</Text>
-        </View>
-      )}
-      {unavailable && (
+      {/* Stock indicator — always visible */}
+      <View style={[styles.stockBadge, { backgroundColor: stockColor }]}>
+        <Ionicons name="cube" size={9} color={Colors.white} />
+        <Text style={styles.stockBadgeText}>{stock}</Text>
+      </View>
+
+      {soldOut && (
         <View style={styles.soldOutOverlay}>
           <Text style={styles.soldOutText}>Sold out</Text>
+        </View>
+      )}
+      {!soldOut && maxedOut && (
+        <View style={styles.soldOutOverlay}>
+          <Text style={styles.soldOutText}>All in cart</Text>
         </View>
       )}
       {qtyInCart > 0 && (
@@ -293,8 +310,8 @@ const styles = StyleSheet.create({
   cardPrice:              { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.success },
   cardPriceLandscape:     { fontSize: Typography.base },
 
-  lowBadge:               { position: 'absolute', top: 3, left: 3, backgroundColor: Colors.warningLight, borderRadius: Radius.sm, paddingHorizontal: 4, paddingVertical: 1 },
-  lowBadgeText:           { fontSize: 8, fontWeight: Typography.bold, color: Colors.warning },
+  stockBadge:             { position: 'absolute', top: 3, left: 3, flexDirection: 'row', alignItems: 'center', gap: 2, borderRadius: Radius.full, paddingHorizontal: 5, paddingVertical: 2 },
+  stockBadgeText:         { fontSize: 9, fontWeight: Typography.bold, color: Colors.white },
   soldOutOverlay:         { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center' },
   soldOutText:            { fontSize: 10, fontWeight: Typography.bold, color: Colors.gray500 },
   qtyBadge:               { position: 'absolute', top: 3, right: 3, backgroundColor: Colors.primary, borderRadius: Radius.full, width: 18, height: 18, alignItems: 'center', justifyContent: 'center' },

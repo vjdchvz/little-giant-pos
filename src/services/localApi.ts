@@ -7,6 +7,14 @@ import { pushOrder, pushVoid, pushStock, pushStockBulk, clearFirebaseOrders } fr
 
 export type ReportPeriod = 'day' | 'week' | 'month' | 'year';
 
+// Thrown when an order's requested qty exceeds live DB stock (DB = source of truth)
+export class InsufficientStockError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InsufficientStockError';
+  }
+}
+
 // ─── Menu ────────────────────────────────────────────────────────────────────
 export const menuAPI = {
   getAll: async (): Promise<MenuItem[]> => {
@@ -97,6 +105,19 @@ export const ordersAPI = {
     const subtotal = payload.items.reduce((s, i) => s + i.subtotal, 0);
     const total = subtotal - discount;
 
+    // DB is the source of truth — validate live stock before committing
+    for (const item of payload.items) {
+      const row = await db.getFirstAsync<{ stock: number; name: string }>(
+        'SELECT stock, name FROM menu_items WHERE id = ?', [item.menu_item_id]
+      );
+      const available = row?.stock ?? 0;
+      if (available < item.qty) {
+        throw new InsufficientStockError(
+          `Not enough stock for ${row?.name ?? item.name}. Only ${available} left.`
+        );
+      }
+    }
+
     const count = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) as c FROM orders');
     const orderNumber = `LG-${((count?.c ?? 0) + 1).toString().padStart(4, '0')}`;
 
@@ -114,7 +135,7 @@ export const ordersAPI = {
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [orderId, item.menu_item_id, item.name, item.price, item.qty, item.subtotal, item.notes ?? null]
         );
-        // Deduct stock, then auto-mark unavailable if 0
+        // Deduct stock guarded so it never goes below 0, then auto-mark unavailable at 0
         await db.runAsync(
           'UPDATE menu_items SET stock = MAX(stock - ?, 0) WHERE id = ?',
           [item.qty, item.menu_item_id]
@@ -129,7 +150,22 @@ export const ordersAPI = {
     const order = await db.getFirstAsync<any>('SELECT * FROM orders WHERE order_number = ?', [orderNumber]);
     const items = await db.getAllAsync<any>('SELECT * FROM order_items WHERE order_id = ?', [order.id]);
     const fullOrder: Order = { ...order, items };
-    pushOrder(fullOrder); // sync to Firebase (best-effort)
+    pushOrder(fullOrder); // sync order to Firebase (best-effort)
+
+    // Push updated stock for each sold item so Firebase/web/other devices stay in sync
+    const soldIds = [...new Set(payload.items.map(i => i.menu_item_id))];
+    for (const id of soldIds) {
+      const r = await db.getFirstAsync<any>(
+        `SELECT m.id, m.name, m.emoji, m.category_id, m.stock, m.is_available, c.name as category_name
+         FROM menu_items m LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?`, [id]
+      );
+      if (r) {
+        pushStock({
+          id: r.id, name: r.name, emoji: r.emoji, category_id: r.category_id,
+          category_name: r.category_name, stock: r.stock, is_available: r.is_available === 1,
+        });
+      }
+    }
     return fullOrder;
   },
 

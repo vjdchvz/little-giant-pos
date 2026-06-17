@@ -1,6 +1,7 @@
-// src/hooks/useFirebaseSync.ts — full two-way real-time sync
+// src/hooks/useFirebaseSync.ts — full two-way real-time sync (offline-aware)
 import { useEffect } from 'react';
-import { listenOrders, listenStock, listenMenu } from '../services/firebaseSync';
+import { AppState } from 'react-native';
+import { listenOrders, listenStock, listenMenu, flushPendingSyncs } from '../services/firebaseSync';
 import { useDashboardStore, useStockStore, useMenuStore } from '../store';
 import { Order } from '../types';
 import { StockItem } from '../services/localApi';
@@ -107,6 +108,18 @@ export function useFirebaseSync() {
       triggerRefresh(); // MenuScreen reloads
     });
 
-    return () => { unsubOrders(); unsubStock(); unsubMenu(); };
+    // Offline outbox: flush queued writes on launch, when app returns to
+    // foreground, and on a slow interval (covers reconnect while app is open).
+    flushPendingSyncs();
+    const appSub = AppState.addEventListener('change', state => {
+      if (state === 'active') flushPendingSyncs();
+    });
+    const flushTimer = setInterval(() => { flushPendingSyncs(); }, 30000);
+
+    return () => {
+      unsubOrders(); unsubStock(); unsubMenu();
+      appSub.remove();
+      clearInterval(flushTimer);
+    };
   }, []);
 }
