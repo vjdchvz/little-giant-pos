@@ -3,7 +3,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   Switch, TextInput, Modal, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Alert, Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +16,9 @@ import { MenuItem } from '../../types';
 import { useAuthStore } from '../../store';
 import { FONT_SCALE_OPTIONS } from '../../theme/fontScale';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// One-time cloud menu seed per app session (prevents repeated 147-item pushes)
+let seededMenuThisSession = false;
 
 // ─── Section ─────────────────────────────────────────────────────────────────
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -82,6 +85,7 @@ function ItemModal({ visible, item, onClose, onSave }: ItemModalProps) {
     if (isNaN(p) || p <= 0) { Alert.alert('Invalid price'); return; }
     const s = parseInt(stock, 10);
     const stockVal = isNaN(s) || s < 0 ? 0 : s;
+    Keyboard.dismiss(); // release soft-input before the modal unmounts (Android tap-lock fix)
     setSaving(true);
     try {
       await onSave({ name: name.trim(), price: p, emoji, category_id: categoryId, stock: stockVal }, item?.id);
@@ -128,7 +132,7 @@ function ItemModal({ visible, item, onClose, onSave }: ItemModalProps) {
           </ScrollView>
 
           <View style={styles.modalButtons}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); onClose(); }}>
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -210,22 +214,29 @@ export default function SettingsScreen() {
     );
   };
 
+  // Read-only load (no Firebase push — that caused UI freezes)
   const loadMenu = useCallback(async () => {
     try {
       const data = await menuAPI.getAll();
       setMenuItems(data);
-      // Seed pos_menu in Firebase so web dashboard has menu data
-      data.forEach(item => pushMenuItem(item.id, {
-        is_available: item.is_available,
-        price: item.price,
-        name: item.name,
-        emoji: item.emoji,
-      }));
     } catch { /* non-critical */ }
     finally { setLoading(false); }
   }, []);
 
   useEffect(() => { loadMenu(); }, []);
+
+  // Seed the full menu to the cloud once per app session (repopulates web
+  // dashboard if pos_menu was ever cleared). Guarded so it never loops.
+  useEffect(() => {
+    if (seededMenuThisSession) return;
+    seededMenuThisSession = true;
+    menuAPI.getAll().then(data => {
+      data.forEach(item => pushMenuItem(item.id, {
+        is_available: item.is_available, price: item.price,
+        name: item.name, emoji: item.emoji,
+      }));
+    }).catch(() => {});
+  }, []);
 
   const openAdd = () => { setEditingItem(null); setModalVisible(true); };
   const openEdit = (item: MenuItem) => { setEditingItem(item); setModalVisible(true); };
@@ -380,7 +391,7 @@ export default function SettingsScreen() {
 
         {/* About */}
         <Section title="About">
-          <SettingRow label="App Version" value="1.0.6" icon="information-circle-outline" />
+          <SettingRow label="App Version" value="1.0.7" icon="information-circle-outline" />
           <SettingRow label="Logged in as" value={`${deviceName} (${role ?? '?'})`} icon="person-outline" />
           <SettingRow label="Built by" value="VJ Dechavez" icon="code-slash-outline" last />
         </Section>

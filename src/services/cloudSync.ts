@@ -9,32 +9,37 @@ import { StockItem } from './localApi';
 export async function applyStockToSQLite(items: StockItem[]) {
   try {
     const db = await getDB();
-    for (const item of items) {
-      // Derive availability from stock count — never trust stale Firebase is_available
-      const isAvail = item.stock > 0 ? 1 : 0;
-      await db.runAsync(
-        'UPDATE menu_items SET stock = ?, is_available = ? WHERE id = ?',
-        [item.stock, isAvail, item.id]
-      );
-    }
+    // One transaction instead of N autocommits — avoids blocking the JS thread
+    await db.withTransactionAsync(async () => {
+      for (const item of items) {
+        // Derive availability from stock count — never trust stale Firebase is_available
+        const isAvail = item.stock > 0 ? 1 : 0;
+        await db.runAsync(
+          'UPDATE menu_items SET stock = ?, is_available = ? WHERE id = ?',
+          [item.stock, isAvail, item.id]
+        );
+      }
+    });
   } catch (e) { console.warn('[Sync] applyStock failed:', e); }
 }
 
 export async function applyMenuToSQLite(items: { id: number; is_available?: boolean; price?: number }[]) {
   try {
     const db = await getDB();
-    for (const item of items) {
-      if (item.is_available !== undefined && item.price !== undefined) {
-        await db.runAsync('UPDATE menu_items SET is_available = ?, price = ? WHERE id = ?',
-          [item.is_available ? 1 : 0, item.price, item.id]);
-      } else if (item.is_available !== undefined) {
-        await db.runAsync('UPDATE menu_items SET is_available = ? WHERE id = ?',
-          [item.is_available ? 1 : 0, item.id]);
-      } else if (item.price !== undefined) {
-        await db.runAsync('UPDATE menu_items SET price = ? WHERE id = ?',
-          [item.price, item.id]);
+    await db.withTransactionAsync(async () => {
+      for (const item of items) {
+        if (item.is_available !== undefined && item.price !== undefined) {
+          await db.runAsync('UPDATE menu_items SET is_available = ?, price = ? WHERE id = ?',
+            [item.is_available ? 1 : 0, item.price, item.id]);
+        } else if (item.is_available !== undefined) {
+          await db.runAsync('UPDATE menu_items SET is_available = ? WHERE id = ?',
+            [item.is_available ? 1 : 0, item.id]);
+        } else if (item.price !== undefined) {
+          await db.runAsync('UPDATE menu_items SET price = ? WHERE id = ?',
+            [item.price, item.id]);
+        }
       }
-    }
+    });
   } catch (e) { console.warn('[Sync] applyMenu failed:', e); }
 }
 

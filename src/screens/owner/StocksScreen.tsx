@@ -3,7 +3,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, RefreshControl,
   TouchableOpacity, TextInput, Modal, KeyboardAvoidingView,
-  Platform, ActivityIndicator, SectionList,
+  Platform, ActivityIndicator, SectionList, Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +21,7 @@ function BulkRestockModal({ visible, onClose, onSave }: {
   const submit = async () => {
     const n = parseInt(qty, 10);
     if (isNaN(n) || n <= 0) return;
+    Keyboard.dismiss(); // release soft-input before the modal unmounts (Android tap-lock fix)
     setSaving(true);
     try { await onSave(n); onClose(); setQty(''); }
     finally { setSaving(false); }
@@ -43,7 +44,7 @@ function BulkRestockModal({ visible, onClose, onSave }: {
             placeholder="e.g. 10"
           />
           <View style={styles.sheetBtns}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); onClose(); }}>
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.5 }]} onPress={submit} disabled={saving}>
@@ -74,6 +75,7 @@ function SetStockModal({
   const submit = async () => {
     const n = parseInt(qty, 10);
     if (isNaN(n) || n < 0) return;
+    Keyboard.dismiss(); // release soft-input before the modal unmounts (Android tap-lock fix)
     setSaving(true);
     try { await onSave(n); onClose(); }
     finally { setSaving(false); }
@@ -98,7 +100,7 @@ function SetStockModal({
           />
 
           <View style={styles.sheetBtns}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); onClose(); }}>
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity

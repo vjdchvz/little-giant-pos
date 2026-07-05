@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList,
-  SafeAreaView, StatusBar, TextInput, Modal, KeyboardAvoidingView, Platform, Alert,
+  SafeAreaView, StatusBar, TextInput, Modal, KeyboardAvoidingView, Platform, Alert, Keyboard,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,12 +29,12 @@ function QtyModal({ item, onClose, onSave }: {
             selectTextOnFocus
           />
           <View style={styles.qtyBoxBtns}>
-            <TouchableOpacity style={styles.qtyBoxCancel} onPress={onClose}>
+            <TouchableOpacity style={styles.qtyBoxCancel} onPress={() => { Keyboard.dismiss(); onClose(); }}>
               <Text style={styles.qtyBoxCancelText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.qtyBoxSave}
-              onPress={() => { const n = parseInt(val, 10); if (n > 0) { onSave(n); onClose(); } }}
+              onPress={() => { const n = parseInt(val, 10); if (n > 0) { Keyboard.dismiss(); onSave(n); onClose(); } }}
             >
               <Text style={styles.qtyBoxSaveText}>Set</Text>
             </TouchableOpacity>

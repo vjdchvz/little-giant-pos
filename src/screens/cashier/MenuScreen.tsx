@@ -11,7 +11,6 @@ import * as Haptics from 'expo-haptics';
 import { Colors, Typography, Spacing, Radius, Shadow, CATEGORY_COLORS } from '../../theme';
 import { useCartStore, useMenuStore } from '../../store';
 import { menuAPI } from '../../services/localApi';
-import { pushMenuItem } from '../../services/firebaseSync';
 import { MenuItem } from '../../types';
 
 const CAT_EMOJI: Record<number, string> = {
@@ -132,6 +131,9 @@ export default function MenuScreen() {
   const { addItem, itemCount, total, items: cartItems } = useCartStore();
   const refreshToken = useMenuStore(s => s.refreshToken);
 
+  // Read-only: MUST NOT push to Firebase here. Pushing on every load created a
+  // feedback loop (listener → triggerRefresh → loadMenu → push → listener …)
+  // that froze the app. Menu changes are synced from Settings/add/edit instead.
   const loadMenu = useCallback(async () => {
     setLoading(true);
     try {
@@ -140,11 +142,6 @@ export default function MenuScreen() {
       if (data.length > 0 && activeCatId === null) {
         setActiveCatId(data[0].category_id ?? null);
       }
-      // Seed pos_menu in Firebase for web dashboard
-      data.forEach(item => pushMenuItem(item.id, {
-        is_available: item.is_available, price: item.price,
-        name: item.name, emoji: item.emoji,
-      }));
     } catch { }
     finally { setLoading(false); }
   }, []);
