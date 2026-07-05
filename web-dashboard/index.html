@@ -102,8 +102,24 @@
     .stock-qty { font-size: 14px; font-weight: 700; }
     .stock-qty.low { color: var(--danger); }
     .stock-qty.ok { color: var(--success); }
-    .stock-bar-wrap { width: 64px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .stock-bar-wrap { width: 48px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
     .stock-bar-fill { height: 100%; border-radius: 3px; }
+    .stepper { display: flex; align-items: center; gap: 6px; }
+    .step-btn {
+      width: 28px; height: 28px; border-radius: 8px; border: none;
+      background: var(--navy); color: #fff; font-size: 18px; font-weight: 700;
+      line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .step-btn:hover { opacity: 0.85; }
+    .step-btn:active { transform: scale(0.92); }
+    .step-input {
+      width: 52px; height: 28px; text-align: center; font-size: 14px; font-weight: 700;
+      border: 1.5px solid var(--border); border-radius: 8px; color: var(--text);
+      -moz-appearance: textfield;
+    }
+    .step-input:focus { outline: none; border-color: var(--navy); }
+    .step-input::-webkit-outer-spin-button, .step-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .step-input.low { color: var(--danger); border-color: var(--danger); }
 
     /* Remote control */
     .remote-card { background: var(--card); border-radius: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 28px; }
@@ -318,6 +334,9 @@
 
     // ── Stock ──────────────────────────────────────────────────────────
     function renderStock() {
+      // Don't rebuild the list while the user is typing in a stock field
+      const ae = document.activeElement;
+      if (ae && ae.classList && ae.classList.contains('step-input')) return;
       const card = document.getElementById('stockCard');
       if (allStock.length === 0) { card.innerHTML = '<div class="empty-state">No stock data.</div>'; return; }
       const sorted = [...allStock].sort((a, b) => a.stock - b.stock);
@@ -330,8 +349,13 @@
           <div class="stock-emoji">${s.emoji || '📦'}</div>
           <div class="stock-name">${s.name}</div>
           <div class="stock-bar-wrap"><div class="stock-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
-          <div class="stock-qty ${isLow ? 'low' : 'ok'}">${s.stock}</div>
-          <button class="restock-btn" onclick="restockItem(${s.id}, '${s.name.replace(/'/g,"\\'")}', ${s.stock})">+</button>
+          <div class="stepper">
+            <button class="step-btn" onclick="adjustStock(${s.id}, -1)">−</button>
+            <input class="step-input ${isLow ? 'low' : 'ok'}" type="number" min="0" value="${s.stock}"
+              onchange="setStockAbs(${s.id}, this.value)"
+              onkeydown="if(event.key==='Enter'){this.blur();}" />
+            <button class="step-btn" onclick="adjustStock(${s.id}, 1)">+</button>
+          </div>
         </div>`;
       }).join('');
     }
@@ -359,18 +383,25 @@
       } catch(e) { alert('Failed to update: ' + e.message); }
     };
 
-    window.restockItem = async function(id, name, current) {
-      const qty = prompt(`Restock "${name}" (current: ${current})\nAdd how many?`);
-      if (!qty) return;
-      const n = parseInt(qty);
-      if (isNaN(n) || n <= 0) return;
-      const newStock = current + n;
+    async function writeStock(id, value) {
       const stockItem = allStock.find(s => s.id === id);
       if (!stockItem) return;
+      const n = Math.max(0, Math.round(Number(value) || 0));
+      // optimistic local update so the UI feels instant
+      stockItem.stock = n; stockItem.is_available = n > 0;
       try {
-        await set(ref(db, `pos_stock/${id}`), { ...stockItem, stock: newStock, is_available: true });
-        alert(`✅ ${name} restocked to ${newStock}`);
-      } catch(e) { alert('Failed: ' + e.message); }
+        await set(ref(db, `pos_stock/${id}`), { ...stockItem, stock: n, is_available: n > 0 });
+      } catch (e) { alert('Failed: ' + e.message); }
+    }
+
+    window.adjustStock = function(id, delta) {
+      const s = allStock.find(x => x.id === id);
+      if (!s) return;
+      writeStock(id, (s.stock || 0) + delta);
+    };
+
+    window.setStockAbs = function(id, value) {
+      writeStock(id, value);
     };
 
     // ── Firebase listeners ─────────────────────────────────────────────
