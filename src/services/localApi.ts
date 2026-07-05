@@ -3,7 +3,24 @@ import { getDB } from '../db';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { MenuItem, Order, CartItem, PaymentMethod, DailySummary } from '../types';
-import { pushOrder, pushVoid, pushStock, pushStockBulk, clearFirebaseOrders } from './firebaseSync';
+import { pushOrder, pushVoid, pushStock, pushStockBulk, clearFirebaseOrders, pushMenuItem, removeMenuItem } from './firebaseSync';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Per-device code so order numbers are globally unique across devices, even
+// when two devices are offline at the same time (prevents Firebase key
+// collisions / lost orders on reconnect). Cached after first read.
+let cachedDeviceCode: string | null = null;
+async function getDeviceCode(): Promise<string> {
+  if (cachedDeviceCode) return cachedDeviceCode;
+  let code = await AsyncStorage.getItem('device_code');
+  if (!code) {
+    // 2-char base36 code, e.g. "A7" — 1296 combos, ample for a food stall
+    code = Math.floor(Math.random() * 1296).toString(36).toUpperCase().padStart(2, '0');
+    await AsyncStorage.setItem('device_code', code);
+  }
+  cachedDeviceCode = code;
+  return code;
+}
 
 export type ReportPeriod = 'day' | 'week' | 'month' | 'year';
 
@@ -44,17 +61,33 @@ export const menuAPI = {
     return db.getAllAsync<any>('SELECT * FROM categories ORDER BY sort_order');
   },
 
-  addItem: async (data: { name: string; price: number; emoji: string; category_id: number | null }): Promise<void> => {
+  addItem: async (data: { name: string; price: number; emoji: string; category_id: number | null; stock?: number }): Promise<number> => {
     const db = await getDB();
-    await db.runAsync(
-      'INSERT INTO menu_items (name, price, emoji, category_id, is_available, is_archived, stock) VALUES (?, ?, ?, ?, 1, 0, 1)',
-      [data.name, data.price, data.emoji, data.category_id]
+    const stock = data.stock ?? 0;
+    const res = await db.runAsync(
+      'INSERT INTO menu_items (name, price, emoji, category_id, is_available, is_archived, stock) VALUES (?, ?, ?, ?, ?, 0, ?)',
+      [data.name, data.price, data.emoji, data.category_id, stock > 0 ? 1 : 0, stock]
     );
+    const id = res.lastInsertRowId;
+    // Push new item to Firebase menu control + stock levels
+    pushMenuItem(id, { name: data.name, price: data.price, emoji: data.emoji, is_available: stock > 0 });
+    const r = await db.getFirstAsync<any>(
+      `SELECT m.id, m.name, m.emoji, m.category_id, m.stock, m.is_available, c.name as category_name
+       FROM menu_items m LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?`, [id]
+    );
+    if (r) {
+      pushStock({
+        id: r.id, name: r.name, emoji: r.emoji, category_id: r.category_id,
+        category_name: r.category_name, stock: r.stock, is_available: r.is_available === 1,
+      });
+    }
+    return id;
   },
 
   deleteItem: async (id: number): Promise<void> => {
     const db = await getDB();
     await db.runAsync('UPDATE menu_items SET is_archived = 1 WHERE id = ?', [id]);
+    removeMenuItem(id); // remove from Firebase menu control + stock levels
   },
 
   updateItem: async (id: number, data: Partial<MenuItem>): Promise<void> => {
@@ -64,6 +97,7 @@ export const menuAPI = {
     if (data.name !== undefined) { fields.push('name = ?'); values.push(data.name); }
     if (data.price !== undefined) { fields.push('price = ?'); values.push(data.price); }
     if (data.emoji !== undefined) { fields.push('emoji = ?'); values.push(data.emoji); }
+    if (data.category_id !== undefined) { fields.push('category_id = ?'); values.push(data.category_id); }
     if (fields.length === 0) return;
     values.push(id);
     await db.runAsync(`UPDATE menu_items SET ${fields.join(', ')} WHERE id = ?`, values);
@@ -119,7 +153,8 @@ export const ordersAPI = {
     }
 
     const count = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) as c FROM orders');
-    const orderNumber = `LG-${((count?.c ?? 0) + 1).toString().padStart(4, '0')}`;
+    const deviceCode = await getDeviceCode();
+    const orderNumber = `LG-${deviceCode}${((count?.c ?? 0) + 1).toString().padStart(4, '0')}`;
 
     await db.withTransactionAsync(async () => {
       const result = await db.runAsync(
@@ -205,8 +240,14 @@ export const ordersAPI = {
 
   void: async (id: number, reason: string): Promise<Order> => {
     const db = await getDB();
+    // Guard against double-void (would restore stock twice)
+    const current = await db.getFirstAsync<{ status: string }>('SELECT status FROM orders WHERE id = ?', [id]);
+    if (!current) throw new Error('Order not found.');
+    if (current.status === 'voided') return ordersAPI.getById(id);
+
+    let restoredIds: number[] = [];
     await db.withTransactionAsync(async () => {
-      await db.runAsync(`UPDATE orders SET status = 'voided', notes = ? WHERE id = ?`, [`VOID: ${reason}`, id]);
+      await db.runAsync(`UPDATE orders SET status = 'voided', notes = ? WHERE id = ? AND status != 'voided'`, [`VOID: ${reason}`, id]);
       const items = await db.getAllAsync<any>('SELECT * FROM order_items WHERE order_id = ?', [id]);
       for (const oi of items) {
         await db.runAsync(
@@ -214,9 +255,24 @@ export const ordersAPI = {
           [oi.qty, oi.menu_item_id]
         );
       }
+      restoredIds = [...new Set(items.map((oi: any) => oi.menu_item_id))];
     });
     const voided = await ordersAPI.getById(id);
-    pushVoid(voided.order_number, reason); // sync to Firebase
+    pushVoid(voided.order_number, reason); // sync order status to Firebase
+
+    // Push restored stock so web + other devices reflect the returned stock
+    for (const mid of restoredIds) {
+      const r = await db.getFirstAsync<any>(
+        `SELECT m.id, m.name, m.emoji, m.category_id, m.stock, m.is_available, c.name as category_name
+         FROM menu_items m LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?`, [mid]
+      );
+      if (r) {
+        pushStock({
+          id: r.id, name: r.name, emoji: r.emoji, category_id: r.category_id,
+          category_name: r.category_name, stock: r.stock, is_available: r.is_available === 1,
+        });
+      }
+    }
     return voided;
   },
 };

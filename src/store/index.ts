@@ -18,8 +18,13 @@ export const useCartStore = create<CartStore>((set, get) => ({
   items: [],
 
   addItem: (item) => {
+    const stock = item.servings_left;
+    // Block adding anything that has no stock
+    if (stock !== undefined && stock <= 0) return;
     const existing = get().items.find(i => i.menu_item_id === item.id);
     if (existing) {
+      // Never exceed available stock
+      if (existing.stock !== undefined && existing.qty >= existing.stock) return;
       set(state => ({
         items: state.items.map(i =>
           i.menu_item_id === item.id
@@ -36,6 +41,7 @@ export const useCartStore = create<CartStore>((set, get) => ({
           emoji: item.emoji,
           qty: 1,
           subtotal: item.price,
+          stock,
         }],
       }));
     }
@@ -48,9 +54,12 @@ export const useCartStore = create<CartStore>((set, get) => ({
   updateQty: (menu_item_id, qty) => {
     if (qty <= 0) { get().removeItem(menu_item_id); return; }
     set(state => ({
-      items: state.items.map(i =>
-        i.menu_item_id === menu_item_id ? { ...i, qty, subtotal: qty * i.price } : i
-      ),
+      items: state.items.map(i => {
+        if (i.menu_item_id !== menu_item_id) return i;
+        // Cap at available stock so cart edits can't exceed what's in stock
+        const capped = i.stock !== undefined ? Math.min(qty, i.stock) : qty;
+        return { ...i, qty: capped, subtotal: capped * i.price };
+      }),
     }));
   },
 
@@ -93,6 +102,20 @@ export const useMenuStore = create<MenuStore>((set, get) => ({
     return items.filter(i => i.category_name === activeCategory);
   },
   triggerRefresh: () => set(s => ({ refreshToken: s.refreshToken + 1 })),
+}));
+
+// ─── Settings Store (font scale) ──────────────
+type FontScaleKey = 'small' | 'normal' | 'large' | 'xl';
+interface SettingsStore {
+  fontScaleKey: FontScaleKey;
+  fontRev: number; // bump to force full re-render when scale changes
+  setFontScaleKey: (key: FontScaleKey) => void;
+}
+
+export const useSettingsStore = create<SettingsStore>((set) => ({
+  fontScaleKey: 'normal',
+  fontRev: 0,
+  setFontScaleKey: (fontScaleKey) => set(s => ({ fontScaleKey, fontRev: s.fontRev + 1 })),
 }));
 
 // ─── Auth Store ───────────────────────────────

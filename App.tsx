@@ -8,7 +8,11 @@ import { getDB } from './src/db';
 import { Colors, Typography, Spacing, Radius } from './src/theme';
 import { stockAPI, StockItem } from './src/services/localApi';
 import { useFirebaseSync } from './src/hooks/useFirebaseSync';
-import { useStockStore } from './src/store';
+import { useStockStore, useSettingsStore } from './src/store';
+import { enableGlobalFontScaling, setGlobalFontScale, scaleForKey } from './src/theme/fontScale';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+enableGlobalFontScaling();
 
 function LowStockAlert({ items, onClose }: { items: StockItem[]; onClose: () => void }) {
   if (items.length === 0) return null;
@@ -48,6 +52,11 @@ function LowStockAlert({ items, onClose }: { items: StockItem[]; onClose: () => 
 function AppContent() {
   useFirebaseSync();
   const ingredients = useStockStore(s => s.ingredients);
+  const fontRev = useSettingsStore(s => s.fontRev);
+  const fontScaleKey = useSettingsStore(s => s.fontScaleKey);
+
+  // Keep the global multiplier in sync with the chosen key
+  useEffect(() => { setGlobalFontScale(scaleForKey(fontScaleKey)); }, [fontScaleKey]);
   const [alertShown, setAlertShown] = useState(false);
   const [lowStockItems, setLowStockItems] = useState<StockItem[]>([]);
   const [showLowStock, setShowLowStock] = useState(false);
@@ -67,7 +76,8 @@ function AppContent() {
 
   return (
     <>
-      <Navigation />
+      {/* key on fontRev remounts the tree so the new font scale applies everywhere */}
+      <Navigation key={`fontrev-${fontRev}`} />
       {showLowStock && (
         <LowStockAlert items={lowStockItems} onClose={() => setShowLowStock(false)} />
       )}
@@ -79,7 +89,16 @@ export default function App() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    getDB().finally(() => setReady(true));
+    (async () => {
+      // Restore saved font scale before first render of the app tree
+      const saved = await AsyncStorage.getItem('font_scale_key');
+      if (saved === 'small' || saved === 'normal' || saved === 'large' || saved === 'xl') {
+        setGlobalFontScale(scaleForKey(saved));
+        useSettingsStore.getState().setFontScaleKey(saved);
+      }
+      await getDB().catch(() => {});
+      setReady(true);
+    })();
   }, []);
 
   if (!ready) {

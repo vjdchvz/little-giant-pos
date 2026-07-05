@@ -50,6 +50,7 @@ export interface CartItem {
   qty: number;
   subtotal: number;
   notes?: string;
+  stock?: number; // available stock at time added — used to cap qty edits
 }
 
 // ─── Orders ─────────────────────────────────

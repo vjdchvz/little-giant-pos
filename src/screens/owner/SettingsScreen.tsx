@@ -8,11 +8,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
-import { menuAPI, ordersAPI } from '../../services/localApi';
+import { menuAPI, ordersAPI, stockAPI } from '../../services/localApi';
 import { pushMenuItem } from '../../services/firebaseSync';
-import { useDashboardStore } from '../../store';
+import { useDashboardStore, useSettingsStore } from '../../store';
 import { MenuItem } from '../../types';
 import { useAuthStore } from '../../store';
+import { FONT_SCALE_OPTIONS } from '../../theme/fontScale';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─── Section ─────────────────────────────────────────────────────────────────
@@ -47,7 +48,7 @@ interface ItemModalProps {
   visible: boolean;
   item: MenuItem | null;
   onClose: () => void;
-  onSave: (data: { name: string; price: number; emoji: string; category_id: number | null }, id?: number) => Promise<void>;
+  onSave: (data: { name: string; price: number; emoji: string; category_id: number | null; stock: number }, id?: number) => Promise<void>;
 }
 
 function ItemModal({ visible, item, onClose, onSave }: ItemModalProps) {
@@ -55,6 +56,7 @@ function ItemModal({ visible, item, onClose, onSave }: ItemModalProps) {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [emoji, setEmoji] = useState('🍽️');
+  const [stock, setStock] = useState('');
   const [categoryId, setCategoryId] = useState<number | null>(1);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [saving, setSaving] = useState(false);
@@ -68,6 +70,7 @@ function ItemModal({ visible, item, onClose, onSave }: ItemModalProps) {
       setName(item?.name ?? '');
       setPrice(item ? String(item.price) : '');
       setEmoji(item?.emoji ?? '🍽️');
+      setStock(item?.servings_left !== undefined ? String(item.servings_left) : '');
       setCategoryId(item?.category_id ?? 1);
     }
   }, [visible, item]);
@@ -76,9 +79,11 @@ function ItemModal({ visible, item, onClose, onSave }: ItemModalProps) {
     if (!name.trim() || !price) return;
     const p = parseFloat(price);
     if (isNaN(p) || p <= 0) { Alert.alert('Invalid price'); return; }
+    const s = parseInt(stock, 10);
+    const stockVal = isNaN(s) || s < 0 ? 0 : s;
     setSaving(true);
     try {
-      await onSave({ name: name.trim(), price: p, emoji, category_id: categoryId }, item?.id);
+      await onSave({ name: name.trim(), price: p, emoji, category_id: categoryId, stock: stockVal }, item?.id);
       onClose();
     } catch {
       Alert.alert('Error', 'Failed to save.');
@@ -102,6 +107,9 @@ function ItemModal({ visible, item, onClose, onSave }: ItemModalProps) {
 
           <Text style={styles.inputLabel}>Price (₱)</Text>
           <TextInput style={styles.input} value={price} onChangeText={setPrice} keyboardType="numeric" placeholder="0.00" />
+
+          <Text style={styles.inputLabel}>Stock (available qty)</Text>
+          <TextInput style={styles.input} value={stock} onChangeText={setStock} keyboardType="number-pad" placeholder="0" />
 
           <Text style={styles.inputLabel}>Category</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.xl }}>
@@ -147,6 +155,13 @@ export default function SettingsScreen() {
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [togglingId, setTogglingId] = useState<number | null>(null);
   const { role, deviceName, logout } = useAuthStore();
+  const fontScaleKey = useSettingsStore(s => s.fontScaleKey);
+  const setFontScaleKey = useSettingsStore(s => s.setFontScaleKey);
+
+  const handleFontScale = (key: typeof fontScaleKey) => {
+    setFontScaleKey(key);
+    AsyncStorage.setItem('font_scale_key', key).catch(() => {});
+  };
 
   const handleLogout = async () => {
     await AsyncStorage.multiRemove(['device_role', 'device_name']);
@@ -197,13 +212,20 @@ export default function SettingsScreen() {
   const openEdit = (item: MenuItem) => { setEditingItem(item); setModalVisible(true); };
   const closeModal = () => { setModalVisible(false); setEditingItem(null); };
 
-  const handleSave = async (data: { name: string; price: number; emoji: string; category_id: number | null }, id?: number) => {
+  const handleSave = async (data: { name: string; price: number; emoji: string; category_id: number | null; stock: number }, id?: number) => {
     if (id) {
-      await menuAPI.updateItem(id, { ...data, category_id: data.category_id ?? undefined });
-      setMenuItems(prev => prev.map(m => m.id === id ? { ...m, ...data, category_id: data.category_id ?? m.category_id } : m));
+      await menuAPI.updateItem(id, {
+        name: data.name, price: data.price, emoji: data.emoji,
+        category_id: data.category_id ?? undefined,
+      });
+      // Apply stock change (also updates availability + pushes pos_stock to Firebase)
+      await stockAPI.setStock(id, data.stock);
+      // Sync name/price/emoji/availability to Firebase menu control
+      pushMenuItem(id, { name: data.name, price: data.price, emoji: data.emoji, is_available: data.stock > 0 });
+      await loadMenu();
     } else {
       await menuAPI.addItem(data);
-      await loadMenu(); // reload to get new id + category name
+      await loadMenu(); // reload to get new id + category name (also pushes menu + stock)
     }
   };
 
@@ -294,9 +316,33 @@ export default function SettingsScreen() {
           </View>
         </View>}
 
+        {/* Text Size — global font scale */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Text Size</Text>
+          <View style={styles.sectionCard}>
+            <View style={styles.fontRow}>
+              {FONT_SCALE_OPTIONS.map(opt => {
+                const active = fontScaleKey === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[styles.fontChip, active && styles.fontChipActive]}
+                    onPress={() => handleFontScale(opt.key)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.fontChipA, active && styles.fontChipTextActive]}>A</Text>
+                    <Text style={[styles.fontChipLabel, active && styles.fontChipTextActive]}>{opt.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={styles.fontHint}>Applies to the whole app instantly.</Text>
+          </View>
+        </View>
+
         {/* About */}
         <Section title="About">
-          <SettingRow label="App Version" value="1.0.1" icon="information-circle-outline" />
+          <SettingRow label="App Version" value="1.0.5" icon="information-circle-outline" />
           <SettingRow label="Logged in as" value={`${deviceName} (${role ?? '?'})`} icon="person-outline" />
           <SettingRow label="Built by" value="VJ Dechavez" icon="code-slash-outline" last />
         </Section>
@@ -383,4 +429,12 @@ const styles = StyleSheet.create({
   saveBtn:          { flex: 2, padding: Spacing.md, borderRadius: Radius.md, backgroundColor: Colors.primary, alignItems: 'center' },
   saveBtnText:      { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.white },
   btnDisabled:      { opacity: 0.5 },
+
+  fontRow:          { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.md },
+  fontChip:         { flex: 1, alignItems: 'center', paddingVertical: Spacing.md, borderRadius: Radius.md, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.white, gap: 2 },
+  fontChipActive:   { backgroundColor: Colors.primaryBg, borderColor: Colors.primary },
+  fontChipA:        { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.textSecondary },
+  fontChipLabel:    { fontSize: Typography.xs, color: Colors.textMuted },
+  fontChipTextActive:{ color: Colors.primary },
+  fontHint:         { fontSize: Typography.xs, color: Colors.textMuted, paddingHorizontal: Spacing.md, paddingBottom: Spacing.md },
 });

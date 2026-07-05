@@ -83,6 +83,16 @@ export async function clearFirebaseOrders(): Promise<void> {
   await set(ref(db, 'pos_orders'), null);
 }
 
+// ─── Remove a menu item everywhere (on delete) ───────────────────────────────
+export async function removeMenuItem(id: number): Promise<void> {
+  try {
+    await Promise.all([
+      set(ref(db, `pos_menu/${id}`), null),
+      set(ref(db, `pos_stock/${id}`), null),
+    ]);
+  } catch (e) { console.warn('[Sync] removeMenuItem failed:', e); }
+}
+
 // ─── Listeners ───────────────────────────────────────────────────────────────
 export function listenOrders(onData: (orders: Order[]) => void): () => void {
   const r = ref(db, 'pos_orders');
