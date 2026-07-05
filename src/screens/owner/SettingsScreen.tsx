@@ -10,7 +10,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
 import { menuAPI, ordersAPI, stockAPI } from '../../services/localApi';
 import { pushMenuItem } from '../../services/firebaseSync';
-import { useDashboardStore, useSettingsStore } from '../../store';
+import { pullFromCloud } from '../../services/cloudSync';
+import { useDashboardStore, useSettingsStore, useMenuStore } from '../../store';
 import { MenuItem } from '../../types';
 import { useAuthStore } from '../../store';
 import { FONT_SCALE_OPTIONS } from '../../theme/fontScale';
@@ -161,6 +162,24 @@ export default function SettingsScreen() {
   const handleFontScale = (key: typeof fontScaleKey) => {
     setFontScaleKey(key);
     AsyncStorage.setItem('font_scale_key', key).catch(() => {});
+  };
+
+  const [syncing, setSyncing] = useState(false);
+  const bumpMenuRefresh = useMenuStore(s => s.triggerRefresh);
+  const bumpDashRefresh = useDashboardStore(s => s.triggerRefresh);
+  const handleSyncNow = async () => {
+    setSyncing(true);
+    try {
+      const res = await pullFromCloud();
+      await loadMenu();
+      bumpMenuRefresh();
+      bumpDashRefresh();
+      Alert.alert('Synced from Cloud', `Menu: ${res.menu} · Stock: ${res.stock} · Orders: ${res.orders}`);
+    } catch {
+      Alert.alert('Sync failed', 'Check your internet connection and try again.');
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -316,6 +335,25 @@ export default function SettingsScreen() {
           </View>
         </View>}
 
+        {/* Cloud sync */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Cloud</Text>
+          <View style={styles.sectionCard}>
+            <TouchableOpacity
+              style={styles.row}
+              onPress={handleSyncNow}
+              disabled={syncing}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="cloud-download-outline" size={20} color={Colors.primary} style={{ marginRight: Spacing.md }} />
+              <Text style={styles.rowLabel}>Sync Now (pull from cloud)</Text>
+              {syncing
+                ? <ActivityIndicator size="small" color={Colors.primary} />
+                : <Ionicons name="chevron-forward" size={18} color={Colors.gray300} />}
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Text Size — global font scale */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Text Size</Text>
@@ -342,7 +380,7 @@ export default function SettingsScreen() {
 
         {/* About */}
         <Section title="About">
-          <SettingRow label="App Version" value="1.0.5" icon="information-circle-outline" />
+          <SettingRow label="App Version" value="1.0.6" icon="information-circle-outline" />
           <SettingRow label="Logged in as" value={`${deviceName} (${role ?? '?'})`} icon="person-outline" />
           <SettingRow label="Built by" value="VJ Dechavez" icon="code-slash-outline" last />
         </Section>
