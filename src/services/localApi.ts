@@ -54,7 +54,7 @@ export const menuAPI = {
       FROM menu_items m
       LEFT JOIN categories c ON m.category_id = c.id
       WHERE m.is_archived = 0
-      ORDER BY c.sort_order, m.id
+      ORDER BY c.sort_order, m.name
     `);
     return rows.map(row => ({
       id: row.id,

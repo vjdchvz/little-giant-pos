@@ -407,7 +407,7 @@ export default function SettingsScreen() {
 
         {/* About */}
         <Section title="About">
-          <SettingRow label="App Version" value="1.0.8" icon="information-circle-outline" />
+          <SettingRow label="App Version" value="1.0.9" icon="information-circle-outline" />
           <SettingRow label="Logged in as" value={`${deviceName} (${role ?? '?'})`} icon="person-outline" />
           <SettingRow label="Built by" value="VJ Dechavez" icon="code-slash-outline" last />
         </Section>
