@@ -152,6 +152,29 @@
       animation: flash 1s ease-in-out;
     }
     @keyframes flash { 0%{background:#FFF9C4} 100%{background:transparent} }
+    .new-item-flash {
+      animation: flash 1.5s ease-in-out;
+    }
+
+    .item-count {
+      font-size: 12px; font-weight: 700; color: var(--muted);
+      background: var(--cream); padding: 2px 8px; border-radius: 999px; vertical-align: middle;
+    }
+
+    /* Toasts */
+    .toast-stack {
+      position: fixed; bottom: 20px; right: 20px; z-index: 2000;
+      display: flex; flex-direction: column; gap: 10px; pointer-events: none;
+    }
+    .toast {
+      background: var(--navy); color: #fff; padding: 12px 18px; border-radius: 10px;
+      font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+      display: flex; align-items: center; gap: 10px; min-width: 220px;
+      animation: toastIn .25s ease-out, toastOut .3s ease-in 3.7s forwards;
+    }
+    .toast-emoji { font-size: 20px; }
+    @keyframes toastIn { from { transform: translateY(12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes toastOut { to { transform: translateY(8px); opacity: 0; } }
 
     /* Add/Edit item */
     .section-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 12px; }
@@ -372,7 +395,7 @@
     <div class="grid-2">
       <!-- Stock levels -->
       <div>
-        <div class="section-title">Stock Levels</div>
+        <div class="section-title">Stock Levels <span class="item-count" id="stockCount"></span></div>
         <div class="orders-card" id="stockCard">
           <div class="empty-state">Loading stock…</div>
         </div>
@@ -381,7 +404,7 @@
       <!-- Remote menu control -->
       <div>
         <div class="section-title-row">
-          <div class="section-title">Menu Control (Remote)</div>
+          <div class="section-title">Menu Control (Remote) <span class="item-count" id="menuCount"></span></div>
           <button class="add-item-btn" onclick="openItemModal()">+ Add Item</button>
         </div>
         <div class="remote-card" id="menuControlCard">
@@ -392,6 +415,9 @@
 
     <div class="last-updated" id="lastUpdated">Never updated</div>
   </main>
+
+  <!-- Toast notifications (new item added, etc.) -->
+  <div class="toast-stack" id="toastStack"></div>
 
   <!-- Add / Edit item modal -->
   <div class="modal-overlay" id="itemModalOverlay">
@@ -678,6 +704,7 @@
 
     // ── Stock ──────────────────────────────────────────────────────────
     function renderStock() {
+      document.getElementById('stockCount').textContent = allStock.length ? `${allStock.length} items` : '';
       // Don't rebuild the list while the user is typing in a stock field
       const ae = document.activeElement;
       if (ae && ae.classList && ae.classList.contains('step-input')) return;
@@ -704,8 +731,33 @@
       }).join('');
     }
 
+    // ── Toasts ───────────────────────────────────────────────────────────
+    function showToast(emoji, text) {
+      const stack = document.getElementById('toastStack');
+      const el = document.createElement('div');
+      el.className = 'toast';
+      el.innerHTML = `<span class="toast-emoji">${emoji}</span><span>${text}</span>`;
+      stack.appendChild(el);
+      setTimeout(() => el.remove(), 4000);
+    }
+
     // ── Menu Control ───────────────────────────────────────────────────
+    let knownMenuIds = null; // null = not yet initialized (avoid toasting on first load)
     function renderMenuControl() {
+      document.getElementById('menuCount').textContent = allMenu.length ? `${allMenu.length} items` : '';
+
+      // Detect newly-added items (present now, weren't in the previous snapshot)
+      const currentIds = new Set(allMenu.map(m => m.id));
+      if (knownMenuIds !== null) {
+        for (const m of allMenu) {
+          if (!knownMenuIds.has(m.id)) {
+            showToast(m.emoji || '🍽️', `New item added: ${m.name}`);
+            m._isNew = true;
+          }
+        }
+      }
+      knownMenuIds = currentIds;
+
       const card = document.getElementById('menuControlCard');
       if (allMenu.length === 0) { card.innerHTML = '<div class="empty-state">No menu data.</div>'; return; }
       // Sorted alphabetically so newly-added items (which have huge
@@ -713,7 +765,7 @@
       // of an unsorted 147+ item list — that "invisible add" looked like a bug.
       const sorted = [...allMenu].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
       card.innerHTML = sorted.map(m => `
-        <div class="menu-control-row" id="mrow-${m.id}">
+        <div class="menu-control-row ${m._isNew ? 'new-item-flash' : ''}" id="mrow-${m.id}">
           <div class="mci-emoji">${m.emoji || '🍽️'}</div>
           <div class="mci-name">${m.name}</div>
           <div class="mci-price">₱${(m.price||0).toFixed(2)}</div>
