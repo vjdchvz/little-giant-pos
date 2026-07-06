@@ -433,7 +433,6 @@
 
     const app = initializeApp(window.FIREBASE_CONFIG);
     const db = getDatabase(app);
-    buildEmojiGrid();
 
     let allOrders = [];
     let allStock = [];
@@ -759,7 +758,10 @@
       '🥒','🥬','🧅','🧄','🍄','🥜','🌰',
     ];
 
+    let emojiGridBuilt = false;
     function buildEmojiGrid() {
+      if (emojiGridBuilt) return;
+      emojiGridBuilt = true;
       const grid = document.getElementById('emojiGrid');
       grid.innerHTML = FOOD_EMOJIS.map(e =>
         `<button type="button" class="emoji-grid-item" onclick="pickEmoji('${e}')">${e}</button>`
@@ -795,6 +797,7 @@
     }
 
     window.openItemModal = function(id) {
+      buildEmojiGrid();
       editingItemId = id ?? null;
       const menuItem = id != null ? allMenu.find(m => m.id === id) : null;
       const stockItem = id != null ? allStock.find(s => s.id === id) : null;
