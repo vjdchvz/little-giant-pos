@@ -22,6 +22,19 @@ async function getDeviceCode(): Promise<string> {
   return code;
 }
 
+function rowToStockItem(row: any): StockItem {
+  return {
+    id: row.id,
+    name: row.name,
+    emoji: row.emoji ?? '🍽️',
+    price: row.price ?? 0,
+    category_id: row.category_id,
+    category_name: row.category_name ?? 'Uncategorized',
+    stock: row.stock ?? 0,
+    is_available: row.is_available === 1,
+  };
+}
+
 export type ReportPeriod = 'day' | 'week' | 'month' | 'year';
 
 // Thrown when an order's requested qty exceeds live DB stock (DB = source of truth)
@@ -72,14 +85,11 @@ export const menuAPI = {
     // Push new item to Firebase menu control + stock levels
     pushMenuItem(id, { name: data.name, price: data.price, emoji: data.emoji, is_available: stock > 0 });
     const r = await db.getFirstAsync<any>(
-      `SELECT m.id, m.name, m.emoji, m.category_id, m.stock, m.is_available, c.name as category_name
+      `SELECT m.id, m.name, m.emoji, m.price, m.category_id, m.stock, m.is_available, c.name as category_name
        FROM menu_items m LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?`, [id]
     );
     if (r) {
-      pushStock({
-        id: r.id, name: r.name, emoji: r.emoji, category_id: r.category_id,
-        category_name: r.category_name, stock: r.stock, is_available: r.is_available === 1,
-      });
+      pushStock(rowToStockItem(r));
     }
     return id;
   },
@@ -109,6 +119,10 @@ export const menuAPI = {
     const row = await db.getFirstAsync<any>(`
       SELECT m.*, c.name as category_name FROM menu_items m
       LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?`, [id]);
+    // Sync to Firebase pos_menu only (matches the web dashboard's own toggle) —
+    // pushing to pos_stock too would let the next stock sync re-derive
+    // is_available from stock count and silently undo this manual override.
+    pushMenuItem(id, { name: row.name, price: row.price, emoji: row.emoji, is_available });
     return { ...row, is_available: row.is_available === 1 };
   },
 };
@@ -191,14 +205,11 @@ export const ordersAPI = {
     const soldIds = [...new Set(payload.items.map(i => i.menu_item_id))];
     for (const id of soldIds) {
       const r = await db.getFirstAsync<any>(
-        `SELECT m.id, m.name, m.emoji, m.category_id, m.stock, m.is_available, c.name as category_name
+        `SELECT m.id, m.name, m.emoji, m.price, m.category_id, m.stock, m.is_available, c.name as category_name
          FROM menu_items m LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?`, [id]
       );
       if (r) {
-        pushStock({
-          id: r.id, name: r.name, emoji: r.emoji, category_id: r.category_id,
-          category_name: r.category_name, stock: r.stock, is_available: r.is_available === 1,
-        });
+        pushStock(rowToStockItem(r));
       }
     }
     return fullOrder;
@@ -263,14 +274,11 @@ export const ordersAPI = {
     // Push restored stock so web + other devices reflect the returned stock
     for (const mid of restoredIds) {
       const r = await db.getFirstAsync<any>(
-        `SELECT m.id, m.name, m.emoji, m.category_id, m.stock, m.is_available, c.name as category_name
+        `SELECT m.id, m.name, m.emoji, m.price, m.category_id, m.stock, m.is_available, c.name as category_name
          FROM menu_items m LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?`, [mid]
       );
       if (r) {
-        pushStock({
-          id: r.id, name: r.name, emoji: r.emoji, category_id: r.category_id,
-          category_name: r.category_name, stock: r.stock, is_available: r.is_available === 1,
-        });
+        pushStock(rowToStockItem(r));
       }
     }
     return voided;
@@ -282,6 +290,7 @@ export interface StockItem {
   id: number;
   name: string;
   emoji: string;
+  price: number;
   category_id: number;
   category_name: string;
   stock: number;
@@ -292,55 +301,83 @@ export const stockAPI = {
   getAll: async (): Promise<StockItem[]> => {
     const db = await getDB();
     const rows = await db.getAllAsync<any>(`
-      SELECT m.id, m.name, m.emoji, m.category_id, m.stock, m.is_available,
+      SELECT m.id, m.name, m.emoji, m.price, m.category_id, m.stock, m.is_available,
              c.name as category_name
       FROM menu_items m
       LEFT JOIN categories c ON m.category_id = c.id
       WHERE m.is_archived = 0
       ORDER BY c.sort_order, m.name
     `);
-    return rows.map(r => ({
-      id: r.id,
-      name: r.name,
-      emoji: r.emoji ?? '🍽️',
-      category_id: r.category_id,
-      category_name: r.category_name ?? 'Uncategorized',
-      stock: r.stock ?? 0,
-      is_available: r.is_available === 1,
-    }));
+    return rows.map(rowToStockItem);
   },
 
+  // Always derive is_available from the resulting stock — restocking an item
+  // that was sold out must bring it back available automatically.
   restock: async (id: number, qty: number): Promise<StockItem> => {
     const db = await getDB();
-    await db.runAsync('UPDATE menu_items SET stock = stock + ? WHERE id = ?', [qty, id]);
+    await db.runAsync(
+      'UPDATE menu_items SET stock = stock + ?, is_available = CASE WHEN stock + ? > 0 THEN 1 ELSE 0 END WHERE id = ?',
+      [qty, qty, id]
+    );
     const row = await db.getFirstAsync<any>(`
       SELECT m.*, c.name as category_name FROM menu_items m
       LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?`, [id]);
-    const item: StockItem = { id: row.id, name: row.name, emoji: row.emoji, category_id: row.category_id, category_name: row.category_name, stock: row.stock, is_available: row.is_available === 1 };
+    const item = rowToStockItem(row);
     pushStock(item);
     return item;
   },
 
   setStock: async (id: number, qty: number): Promise<StockItem> => {
     const db = await getDB();
-    await db.runAsync('UPDATE menu_items SET stock = ? WHERE id = ?', [Math.max(0, qty), id]);
+    const clamped = Math.max(0, qty);
+    await db.runAsync(
+      'UPDATE menu_items SET stock = ?, is_available = ? WHERE id = ?',
+      [clamped, clamped > 0 ? 1 : 0, id]
+    );
     const row = await db.getFirstAsync<any>(`
       SELECT m.*, c.name as category_name FROM menu_items m
       LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?`, [id]);
-    const item: StockItem = { id: row.id, name: row.name, emoji: row.emoji, category_id: row.category_id, category_name: row.category_name, stock: row.stock, is_available: row.is_available === 1 };
+    const item = rowToStockItem(row);
     pushStock(item);
     return item;
   },
 
   logWaste: async (id: number, qty: number): Promise<StockItem> => {
     const db = await getDB();
-    await db.runAsync('UPDATE menu_items SET stock = MAX(stock - ?, 0) WHERE id = ?', [qty, id]);
+    await db.runAsync(
+      'UPDATE menu_items SET stock = MAX(stock - ?, 0), is_available = CASE WHEN MAX(stock - ?, 0) > 0 THEN 1 ELSE 0 END WHERE id = ?',
+      [qty, qty, id]
+    );
     const row = await db.getFirstAsync<any>(`
       SELECT m.*, c.name as category_name FROM menu_items m
       LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?`, [id]);
-    const item: StockItem = { id: row.id, name: row.name, emoji: row.emoji, category_id: row.category_id, category_name: row.category_name, stock: row.stock, is_available: row.is_available === 1 };
+    const item = rowToStockItem(row);
     pushStock(item);
     return item;
+  },
+
+  // Fast bulk restock: one SQL statement for all items (was N sequential
+  // round-trips, slow and prone to stalling on 100+ items), then push all
+  // updated stock to Firebase concurrently. Reports progress via onProgress.
+  bulkRestock: async (qty: number, onProgress?: (done: number, total: number) => void): Promise<StockItem[]> => {
+    const db = await getDB();
+    await db.runAsync(
+      `UPDATE menu_items SET stock = stock + ?, is_available = CASE WHEN stock + ? > 0 THEN 1 ELSE 0 END
+       WHERE is_archived = 0`,
+      [qty, qty]
+    );
+    const rows = await db.getAllAsync<any>(`
+      SELECT m.*, c.name as category_name FROM menu_items m
+      LEFT JOIN categories c ON m.category_id = c.id WHERE m.is_archived = 0`);
+    const items = rows.map(rowToStockItem);
+
+    let done = 0;
+    await Promise.all(items.map(async item => {
+      await pushStock(item);
+      done++;
+      onProgress?.(done, items.length);
+    }));
+    return items;
   },
 };
 

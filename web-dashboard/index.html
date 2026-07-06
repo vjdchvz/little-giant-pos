@@ -152,6 +152,116 @@
       animation: flash 1s ease-in-out;
     }
     @keyframes flash { 0%{background:#FFF9C4} 100%{background:transparent} }
+
+    /* Add/Edit item */
+    .section-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 12px; }
+    .section-title-row .section-title { margin-bottom: 0; }
+    .history-search {
+      flex: 0 1 260px; padding: 7px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 13px; background: #fff; color: var(--text);
+    }
+    .history-search:focus { outline: none; border-color: var(--navy); }
+    .period-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+    .period-tab {
+      background: #fff; border: 1.5px solid var(--border); color: var(--muted);
+      padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; cursor: pointer;
+    }
+    .period-tab.active { background: var(--navy); border-color: var(--navy); color: #fff; }
+    .void-btn {
+      background: var(--danger); color: #fff; border: none; border-radius: 6px;
+      padding: 4px 10px; font-size: 11px; font-weight: 700; cursor: pointer;
+    }
+    .void-btn:hover { opacity: 0.85; }
+    .void-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Analytics */
+    .analytics-card { background: var(--card); border-radius: 16px; padding: 18px 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    .analytics-title { font-size: 13px; font-weight: 800; color: var(--navy); margin-bottom: 14px; display: flex; align-items: baseline; gap: 8px; }
+    .analytics-sub { font-size: 11px; font-weight: 500; color: var(--muted); }
+
+    .trend-chart { display: flex; align-items: flex-end; gap: 8px; height: 120px; }
+    .trend-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; }
+    .trend-bar-wrap { width: 100%; height: 90px; display: flex; align-items: flex-end; }
+    .trend-bar { width: 100%; border-radius: 5px 5px 2px 2px; background: var(--navy); min-height: 3px; transition: height .3s; }
+    .trend-bar.today { background: var(--gold); }
+    .trend-val { font-size: 9px; color: var(--muted); font-weight: 700; }
+    .trend-label { font-size: 10px; color: var(--muted); }
+
+    .pay-split-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--border); margin-bottom: 12px; }
+    .pay-split-seg { height: 100%; }
+    .pay-split-legend { display: flex; flex-direction: column; gap: 8px; }
+    .pay-split-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+    .pay-split-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+    .pay-split-name { flex: 1; color: var(--text); font-weight: 600; }
+    .pay-split-amt { color: var(--muted); font-weight: 700; }
+
+    .seller-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
+    .seller-row:first-child { border-top: none; }
+    .seller-rank { width: 18px; font-size: 12px; font-weight: 800; color: var(--muted); text-align: center; }
+    .seller-emoji { font-size: 18px; width: 24px; text-align: center; }
+    .seller-name { flex: 1; font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .seller-qty { font-size: 12px; font-weight: 700; color: var(--navy); }
+    .seller-bar-wrap { width: 60px; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .seller-bar-fill { height: 100%; border-radius: 3px; background: var(--success); }
+    .slow .seller-bar-fill { background: var(--danger); }
+    .add-item-btn {
+      background: var(--navy); color: #fff; border: none; border-radius: 8px;
+      padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer;
+    }
+    .add-item-btn:hover { opacity: 0.85; }
+    .mci-edit-btn {
+      background: none; border: none; cursor: pointer; color: var(--muted);
+      font-size: 15px; padding: 4px 6px; border-radius: 6px;
+    }
+    .mci-edit-btn:hover { background: var(--cream); color: var(--navy); }
+    .mci-delete-btn {
+      background: none; border: none; cursor: pointer; color: var(--muted);
+      font-size: 14px; padding: 4px 6px; border-radius: 6px;
+    }
+    .mci-delete-btn:hover { background: var(--dangerLight, #FCEBEB); color: var(--danger); }
+
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      align-items: center; justify-content: center; z-index: 1000; padding: 16px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-sheet {
+      background: #fff; border-radius: 16px; padding: 24px; width: 100%; max-width: 380px;
+      max-height: 90vh; overflow-y: auto;
+    }
+    .modal-title { font-size: 17px; font-weight: 800; color: var(--navy); margin-bottom: 16px; }
+    .modal-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin: 12px 0 4px; }
+    .modal-input {
+      width: 100%; padding: 9px 10px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 14px; color: var(--text); box-sizing: border-box; background: #fff;
+    }
+    .modal-input:focus { outline: none; border-color: var(--navy); }
+    .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
+    .modal-cancel, .modal-save {
+      flex: 1; padding: 10px; border-radius: 8px; border: none; font-size: 14px; font-weight: 700; cursor: pointer;
+    }
+    .modal-cancel { background: var(--cream); color: var(--muted); }
+    .modal-save { background: var(--navy); color: #fff; }
+    .modal-save:hover, .modal-cancel:hover { opacity: 0.85; }
+    .modal-save:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .emoji-picker-trigger {
+      display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+      border: 1.5px solid var(--border); border-radius: 8px; cursor: pointer; background: #fff;
+    }
+    .emoji-picker-trigger:hover { border-color: var(--navy); }
+    .emoji-picker-trigger span:first-child { font-size: 22px; }
+    .emoji-picker-hint { font-size: 12px; color: var(--muted); }
+    .emoji-grid {
+      display: none; grid-template-columns: repeat(8, 1fr); gap: 4px;
+      max-height: 160px; overflow-y: auto; margin-top: 8px; padding: 8px;
+      border: 1.5px solid var(--border); border-radius: 8px; background: var(--cream);
+    }
+    .emoji-grid.open { display: grid; }
+    .emoji-grid-item {
+      font-size: 20px; padding: 6px 0; text-align: center; border-radius: 6px; cursor: pointer; border: none; background: none;
+    }
+    .emoji-grid-item:hover { background: #fff; }
   </style>
 </head>
 <body>
@@ -203,7 +313,41 @@
     </div>
 
     <!-- Orders -->
-    <div class="section-title">Recent Orders</div>
+    <div class="section-title-row">
+      <div class="section-title">Sales &amp; History</div>
+      <input class="history-search" id="historySearch" placeholder="Search order # or item…" oninput="renderOrders()" />
+    </div>
+    <div class="period-tabs" id="periodTabs">
+      <button class="period-tab active" data-period="today" onclick="setPeriod('today')">Today</button>
+      <button class="period-tab" data-period="week" onclick="setPeriod('week')">This Week</button>
+      <button class="period-tab" data-period="month" onclick="setPeriod('month')">This Month</button>
+      <button class="period-tab" data-period="all" onclick="setPeriod('all')">All Time</button>
+    </div>
+
+    <!-- Analytics -->
+    <div class="grid-2" style="margin-bottom:16px;">
+      <div class="analytics-card">
+        <div class="analytics-title">7-Day Trend</div>
+        <div class="trend-chart" id="trendChart"></div>
+      </div>
+      <div class="analytics-card">
+        <div class="analytics-title">Payment Split <span class="analytics-sub" id="paySplitSub"></span></div>
+        <div class="pay-split-bar" id="paySplitBar"></div>
+        <div class="pay-split-legend" id="paySplitLegend"></div>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-bottom:16px;">
+      <div class="analytics-card">
+        <div class="analytics-title">🏆 Best Sellers <span class="analytics-sub" id="bestSub"></span></div>
+        <div id="bestSellers"></div>
+      </div>
+      <div class="analytics-card">
+        <div class="analytics-title">🐌 Slow Movers <span class="analytics-sub" id="slowSub"></span></div>
+        <div id="slowSellers"></div>
+      </div>
+    </div>
+
+    <div class="section-title">Order History</div>
     <div class="orders-card">
       <table>
         <thead>
@@ -215,10 +359,11 @@
             <th>Payment</th>
             <th>Status</th>
             <th>Time</th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="ordersBody">
-          <tr><td colspan="7" class="empty-state">Loading orders…</td></tr>
+          <tr><td colspan="8" class="empty-state">Loading orders…</td></tr>
         </tbody>
       </table>
     </div>
@@ -235,7 +380,10 @@
 
       <!-- Remote menu control -->
       <div>
-        <div class="section-title">Menu Control (Remote)</div>
+        <div class="section-title-row">
+          <div class="section-title">Menu Control (Remote)</div>
+          <button class="add-item-btn" onclick="openItemModal()">+ Add Item</button>
+        </div>
         <div class="remote-card" id="menuControlCard">
           <div class="empty-state">Loading menu…</div>
         </div>
@@ -245,6 +393,38 @@
     <div class="last-updated" id="lastUpdated">Never updated</div>
   </main>
 
+  <!-- Add / Edit item modal -->
+  <div class="modal-overlay" id="itemModalOverlay">
+    <div class="modal-sheet">
+      <div class="modal-title" id="itemModalTitle">Add New Item</div>
+
+      <label class="modal-label">Emoji</label>
+      <div class="emoji-picker-trigger" id="emojiPickerTrigger" onclick="toggleEmojiPicker()">
+        <span id="emojiPreview">🍽️</span>
+        <span class="emoji-picker-hint">Tap to choose</span>
+      </div>
+      <div class="emoji-grid" id="emojiGrid"></div>
+      <input type="hidden" id="itemEmoji" value="🍽️" />
+
+      <label class="modal-label">Name</label>
+      <input class="modal-input" id="itemName" placeholder="e.g. Tapsilog" />
+
+      <label class="modal-label">Price (₱)</label>
+      <input class="modal-input" id="itemPrice" type="number" min="0" step="0.01" placeholder="0.00" />
+
+      <label class="modal-label">Stock (available qty)</label>
+      <input class="modal-input" id="itemStock" type="number" min="0" placeholder="0" />
+
+      <label class="modal-label">Category</label>
+      <select class="modal-input" id="itemCategory"></select>
+
+      <div class="modal-btns">
+        <button class="modal-cancel" onclick="closeItemModal()">Cancel</button>
+        <button class="modal-save" id="itemModalSaveBtn" onclick="saveItemModal()">Save</button>
+      </div>
+    </div>
+  </div>
+
   <script src="firebase-config.js"></script>
   <!-- Firebase -->
   <script type="module">
@@ -253,17 +433,12 @@
 
     const app = initializeApp(window.FIREBASE_CONFIG);
     const db = getDatabase(app);
+    buildEmojiGrid();
 
     let allOrders = [];
     let allStock = [];
     let allMenu = [];
 
-    let todayLabel = new Date().toLocaleDateString();
-
-    function isToday(ts) {
-      if (!ts) return false;
-      return new Date(ts).toLocaleDateString() === todayLabel;
-    }
 
     function setOnline(ok) {
       document.getElementById('statusDot').style.background = ok ? 'var(--success)' : 'var(--danger)';
@@ -282,18 +457,53 @@
     }
 
     // ── Orders ─────────────────────────────────────────────────────────
+    let currentPeriod = 'today';
+    window.setPeriod = function(p) {
+      currentPeriod = p;
+      document.querySelectorAll('.period-tab').forEach(el => {
+        el.classList.toggle('active', el.dataset.period === p);
+      });
+      renderOrders();
+      renderKPIs();
+      renderAnalytics();
+    };
+
+    function inPeriod(ts, period) {
+      if (period === 'all') return true;
+      const d = new Date(ts), now = new Date();
+      if (period === 'today') return d.toLocaleDateString() === now.toLocaleDateString();
+      if (period === 'week') {
+        const cutoff = new Date(now); cutoff.setDate(now.getDate() - 6); cutoff.setHours(0,0,0,0);
+        return d >= cutoff;
+      }
+      if (period === 'month') return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      return true;
+    }
+
     function renderOrders() {
       const tbody = document.getElementById('ordersBody');
-      const sorted = [...allOrders].sort((a, b) => b.created_at > a.created_at ? 1 : -1);
+      const search = (document.getElementById('historySearch')?.value || '').toLowerCase().trim();
+      let filtered = allOrders.filter(o => inPeriod(o.created_at, currentPeriod));
+      if (search) {
+        filtered = filtered.filter(o => {
+          if ((o.order_number || '').toLowerCase().includes(search)) return true;
+          return (o.items || []).some(i => (i.name || '').toLowerCase().includes(search));
+        });
+      }
+      const sorted = filtered.sort((a, b) => b.created_at > a.created_at ? 1 : -1);
       if (sorted.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No orders yet.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No orders found.</td></tr>';
         return;
       }
-      tbody.innerHTML = sorted.slice(0, 50).map(o => {
+      tbody.innerHTML = sorted.slice(0, 200).map(o => {
         const itemsText = (o.items || []).slice(0, 2).map(i => `${i.emoji || ''}${i.name} ×${i.qty}`).join(', ');
         const more = (o.items || []).length > 2 ? ` +${(o.items||[]).length - 2} more` : '';
         const payBadge = `badge-${o.payment_method || 'cash'}`;
-        const statusBadge = o.status === 'voided' ? 'badge-voided' : 'badge-completed';
+        const isVoided = o.status === 'voided';
+        const statusBadge = isVoided ? 'badge-voided' : 'badge-completed';
+        const voidBtn = isVoided
+          ? ''
+          : `<button class="void-btn" onclick="voidOrder('${o.order_number}')">Void</button>`;
         return `<tr class="${o._isNew ? 'new-order-flash' : ''}">
           <td style="font-weight:700">${o.order_number}</td>
           <td>${o.cashier_name || 'Cashier'}</td>
@@ -302,23 +512,158 @@
           <td><span class="badge ${payBadge}">${(o.payment_method||'cash').toUpperCase()}</span></td>
           <td><span class="badge ${statusBadge}">${o.status}</span></td>
           <td>${fmt(o.created_at)}</td>
+          <td>${voidBtn}</td>
         </tr>`;
       }).join('');
     }
 
-    function renderKPIs() {
-      const todayOrders = allOrders.filter(o => o.status !== 'voided' && isToday(o.created_at));
-      const gross = todayOrders.reduce((s, o) => s + (o.total || 0), 0);
-      const cash = todayOrders.filter(o => o.payment_method === 'cash').reduce((s, o) => s + (o.total || 0), 0);
-      const digital = todayOrders.filter(o => o.payment_method !== 'cash').reduce((s, o) => s + (o.total || 0), 0);
-      const last = [...todayOrders].sort((a, b) => b.created_at > a.created_at ? 1 : -1)[0];
+    window.voidOrder = async function(orderNumber) {
+      const order = allOrders.find(o => o.order_number === orderNumber);
+      if (!order || order.status === 'voided') return;
+      const reason = prompt(`Void order ${orderNumber}?\nEnter a reason (stock will be restored):`);
+      if (!reason) return;
+      try {
+        await update(ref(db, `pos_orders/${orderNumber}`), { status: 'voided', notes: `VOID: ${reason}` });
+        // Restore stock for each item in the order
+        for (const item of (order.items || [])) {
+          const s = allStock.find(x => x.id === item.menu_item_id);
+          if (!s) continue;
+          const newStock = (s.stock || 0) + (item.qty || 0);
+          await set(ref(db, `pos_stock/${item.menu_item_id}`), {
+            ...s, stock: newStock, is_available: true,
+          });
+        }
+        alert(`✅ ${orderNumber} voided and stock restored.`);
+      } catch (e) {
+        alert('Failed to void: ' + e.message);
+      }
+    };
 
+    const PERIOD_LABELS = { today: "Today's Sales", week: "This Week's Sales", month: "This Month's Sales", all: "All-Time Sales" };
+
+    function renderKPIs() {
+      const periodOrders = allOrders.filter(o => o.status !== 'voided' && inPeriod(o.created_at, currentPeriod));
+      const gross = periodOrders.reduce((s, o) => s + (o.total || 0), 0);
+      const cash = periodOrders.filter(o => o.payment_method === 'cash').reduce((s, o) => s + (o.total || 0), 0);
+      const digital = periodOrders.filter(o => o.payment_method !== 'cash').reduce((s, o) => s + (o.total || 0), 0);
+      const last = [...periodOrders].sort((a, b) => b.created_at > a.created_at ? 1 : -1)[0];
+
+      document.querySelector('.kpi-label').textContent = PERIOD_LABELS[currentPeriod] || "Today's Sales";
       document.getElementById('kpiSales').textContent = `₱${gross.toFixed(2)}`;
-      document.getElementById('kpiOrders').textContent = `${todayOrders.length} order${todayOrders.length !== 1 ? 's' : ''} today`;
+      document.getElementById('kpiOrders').textContent = `${periodOrders.length} order${periodOrders.length !== 1 ? 's' : ''}`;
       document.getElementById('kpiCash').textContent = `₱${cash.toFixed(2)}`;
       document.getElementById('kpiDigital').textContent = `₱${digital.toFixed(2)}`;
       document.getElementById('kpiLast').textContent = last ? `₱${last.total.toFixed(2)}` : '—';
       document.getElementById('kpiLastTime').textContent = last ? `${last.order_number} · ${fmt(last.created_at)}` : 'No orders yet';
+    }
+
+    // ── Analytics: 7-day trend, payment split, best/slow sellers ───────
+    function renderTrendChart() {
+      const el = document.getElementById('trendChart');
+      const now = new Date();
+      const days = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now); d.setDate(now.getDate() - i);
+        days.push(d);
+      }
+      const totals = days.map(d => {
+        return allOrders
+          .filter(o => o.status !== 'voided' && new Date(o.created_at).toDateString() === d.toDateString())
+          .reduce((s, o) => s + (o.total || 0), 0);
+      });
+      const max = Math.max(...totals, 1);
+      el.innerHTML = days.map((d, i) => {
+        const pct = Math.round((totals[i] / max) * 100);
+        const isToday = d.toDateString() === now.toDateString();
+        return `<div class="trend-col">
+          <div class="trend-val">${totals[i] > 0 ? '₱' + totals[i].toFixed(0) : ''}</div>
+          <div class="trend-bar-wrap"><div class="trend-bar ${isToday ? 'today' : ''}" style="height:${Math.max(pct,2)}%" title="₱${totals[i].toFixed(2)}"></div></div>
+          <div class="trend-label">${d.toLocaleDateString('en-PH', { weekday: 'short' })}</div>
+        </div>`;
+      }).join('');
+    }
+
+    function renderPaySplit() {
+      const periodOrders = allOrders.filter(o => o.status !== 'voided' && inPeriod(o.created_at, currentPeriod));
+      const cash = periodOrders.filter(o => o.payment_method === 'cash').reduce((s, o) => s + (o.total || 0), 0);
+      const gcash = periodOrders.filter(o => o.payment_method === 'gcash').reduce((s, o) => s + (o.total || 0), 0);
+      const maya = periodOrders.filter(o => o.payment_method === 'maya').reduce((s, o) => s + (o.total || 0), 0);
+      const total = cash + gcash + maya;
+
+      document.getElementById('paySplitSub').textContent = total > 0 ? `₱${total.toFixed(2)} total` : '';
+
+      const methods = [
+        { name: 'Cash', val: cash, color: 'var(--gold)' },
+        { name: 'GCash', val: gcash, color: '#007DFE' },
+        { name: 'Maya', val: maya, color: '#00C389' },
+      ];
+      const bar = document.getElementById('paySplitBar');
+      const legend = document.getElementById('paySplitLegend');
+      if (total === 0) {
+        bar.innerHTML = '';
+        legend.innerHTML = '<div class="analytics-sub">No sales in this period.</div>';
+        return;
+      }
+      bar.innerHTML = methods.filter(m => m.val > 0).map(m =>
+        `<div class="pay-split-seg" style="width:${(m.val/total*100).toFixed(1)}%;background:${m.color}"></div>`
+      ).join('');
+      legend.innerHTML = methods.map(m => `
+        <div class="pay-split-row">
+          <div class="pay-split-dot" style="background:${m.color}"></div>
+          <div class="pay-split-name">${m.name}</div>
+          <div class="pay-split-amt">₱${m.val.toFixed(2)} (${total > 0 ? Math.round(m.val/total*100) : 0}%)</div>
+        </div>
+      `).join('');
+    }
+
+    function itemStatsForPeriod() {
+      const stats = {};
+      for (const o of allOrders) {
+        if (o.status === 'voided') continue;
+        if (!inPeriod(o.created_at, currentPeriod)) continue;
+        for (const it of (o.items || [])) {
+          const key = it.menu_item_id ?? it.name;
+          if (!stats[key]) stats[key] = { name: it.name, emoji: it.emoji || '🍽️', qty: 0, revenue: 0 };
+          stats[key].qty += it.qty || 0;
+          stats[key].revenue += it.subtotal ?? ((it.price || 0) * (it.qty || 0));
+        }
+      }
+      return Object.values(stats);
+    }
+
+    function renderSellerList(elId, rows, maxQty, isSlow) {
+      const el = document.getElementById(elId);
+      if (rows.length === 0) {
+        el.innerHTML = '<div class="analytics-sub">No sales in this period.</div>';
+        return;
+      }
+      el.innerHTML = rows.map((r, i) => {
+        const pct = Math.max(6, Math.round((r.qty / maxQty) * 100));
+        return `<div class="seller-row ${isSlow ? 'slow' : ''}">
+          <div class="seller-rank">${i + 1}</div>
+          <div class="seller-emoji">${r.emoji}</div>
+          <div class="seller-name">${r.name}</div>
+          <div class="seller-bar-wrap"><div class="seller-bar-fill" style="width:${pct}%"></div></div>
+          <div class="seller-qty">${r.qty} sold</div>
+        </div>`;
+      }).join('');
+    }
+
+    function renderSellers() {
+      const stats = itemStatsForPeriod();
+      const maxQty = Math.max(...stats.map(s => s.qty), 1);
+      const best = [...stats].sort((a, b) => b.qty - a.qty).slice(0, 5);
+      const slow = [...stats].sort((a, b) => a.qty - b.qty).slice(0, 5);
+      document.getElementById('bestSub').textContent = stats.length ? `${stats.length} items sold` : '';
+      document.getElementById('slowSub').textContent = stats.length ? 'lowest movers' : '';
+      renderSellerList('bestSellers', best, maxQty, false);
+      renderSellerList('slowSellers', slow, maxQty, true);
+    }
+
+    function renderAnalytics() {
+      renderTrendChart();
+      renderPaySplit();
+      renderSellers();
     }
 
     function renderTicker() {
@@ -364,11 +709,17 @@
     function renderMenuControl() {
       const card = document.getElementById('menuControlCard');
       if (allMenu.length === 0) { card.innerHTML = '<div class="empty-state">No menu data.</div>'; return; }
-      card.innerHTML = allMenu.map(m => `
+      // Sorted alphabetically so newly-added items (which have huge
+      // timestamp-based ids) don't get silently appended at the very bottom
+      // of an unsorted 147+ item list — that "invisible add" looked like a bug.
+      const sorted = [...allMenu].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      card.innerHTML = sorted.map(m => `
         <div class="menu-control-row" id="mrow-${m.id}">
           <div class="mci-emoji">${m.emoji || '🍽️'}</div>
           <div class="mci-name">${m.name}</div>
           <div class="mci-price">₱${(m.price||0).toFixed(2)}</div>
+          <button class="mci-edit-btn" onclick="openItemModal(${m.id})" title="Edit">✏️</button>
+          <button class="mci-delete-btn" onclick="deleteItem(${m.id}, '${(m.name||'').replace(/'/g,"\\'")}')" title="Delete">🗑️</button>
           <label class="toggle">
             <input type="checkbox" ${m.is_available ? 'checked' : ''} onchange="toggleMenu(${m.id}, this.checked)" />
             <span class="toggle-slider"></span>
@@ -377,10 +728,130 @@
       `).join('');
     }
 
+    window.deleteItem = async function(id, name) {
+      if (!confirm(`Delete "${name}"?\nThis removes it from the menu and stock everywhere. This cannot be undone.`)) return;
+      try {
+        await Promise.all([
+          set(ref(db, `pos_menu/${id}`), null),
+          set(ref(db, `pos_stock/${id}`), null),
+        ]);
+      } catch (e) {
+        alert('Failed to delete: ' + e.message);
+      }
+    };
+
     window.toggleMenu = async function(id, isAvailable) {
       try {
         await update(ref(db, `pos_menu/${id}`), { is_available: isAvailable });
       } catch(e) { alert('Failed to update: ' + e.message); }
+    };
+
+    // ── Add / Edit item modal ───────────────────────────────────────────
+    let editingItemId = null;
+
+    // Curated food/drink emojis only — matches what the app uses for menu items
+    const FOOD_EMOJIS = [
+      '🍽️','🍢','🧀','⚪','🍡','🍳','🌭','🥚','🍱','🥫','🥩','🥔','🍟',
+      '🍗','🔥','🍜','🥟','🥭','🍊','🍑','🍋','🍓','🧊','🍦','🍨','🍫',
+      '🥥','🥤','🧋','☕','🍵','💧','🍹','🍰','🧁','🍕','🍔','🍿','🥪',
+      '🌮','🌯','🍝','🍛','🍚','🍤','🍙','🍘','🍥','🥮','🍧','🍮','🍬',
+      '🍭','🍩','🍪','🥧','🍎','🍉','🍇','🍈','🍒','🍍','🥝','🥑','🌽',
+      '🥒','🥬','🧅','🧄','🍄','🥜','🌰',
+    ];
+
+    function buildEmojiGrid() {
+      const grid = document.getElementById('emojiGrid');
+      grid.innerHTML = FOOD_EMOJIS.map(e =>
+        `<button type="button" class="emoji-grid-item" onclick="pickEmoji('${e}')">${e}</button>`
+      ).join('');
+    }
+
+    window.toggleEmojiPicker = function() {
+      document.getElementById('emojiGrid').classList.toggle('open');
+    };
+
+    window.pickEmoji = function(e) {
+      document.getElementById('itemEmoji').value = e;
+      document.getElementById('emojiPreview').textContent = e;
+      document.getElementById('emojiGrid').classList.remove('open');
+    };
+
+    function categoryOptions() {
+      const seen = new Map();
+      for (const s of allStock) {
+        if (s.category_id != null && !seen.has(s.category_id)) {
+          seen.set(s.category_id, s.category_name || `Category ${s.category_id}`);
+        }
+      }
+      return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+    }
+
+    function populateCategorySelect(selectedId) {
+      const sel = document.getElementById('itemCategory');
+      const opts = categoryOptions();
+      sel.innerHTML = opts.map(([id, name]) =>
+        `<option value="${id}" ${id === selectedId ? 'selected' : ''}>${name}</option>`
+      ).join('');
+    }
+
+    window.openItemModal = function(id) {
+      editingItemId = id ?? null;
+      const menuItem = id != null ? allMenu.find(m => m.id === id) : null;
+      const stockItem = id != null ? allStock.find(s => s.id === id) : null;
+
+      const emoji = menuItem?.emoji || '🍽️';
+      document.getElementById('itemModalTitle').textContent = id != null ? 'Edit Item' : 'Add New Item';
+      document.getElementById('itemEmoji').value = emoji;
+      document.getElementById('emojiPreview').textContent = emoji;
+      document.getElementById('emojiGrid').classList.remove('open');
+      document.getElementById('itemName').value = menuItem?.name || '';
+      document.getElementById('itemPrice').value = menuItem?.price ?? '';
+      document.getElementById('itemStock').value = stockItem?.stock ?? '';
+      populateCategorySelect(stockItem?.category_id ?? categoryOptions()[0]?.[0]);
+
+      document.getElementById('itemModalOverlay').classList.add('open');
+    };
+
+    window.closeItemModal = function() {
+      document.getElementById('itemModalOverlay').classList.remove('open');
+      document.getElementById('emojiGrid').classList.remove('open');
+      editingItemId = null;
+    };
+
+    window.saveItemModal = async function() {
+      const name = document.getElementById('itemName').value.trim();
+      const price = parseFloat(document.getElementById('itemPrice').value);
+      const emoji = document.getElementById('itemEmoji').value.trim() || '🍽️';
+      const stock = Math.max(0, parseInt(document.getElementById('itemStock').value, 10) || 0);
+      const categoryId = parseInt(document.getElementById('itemCategory').value, 10);
+      const categoryName = (categoryOptions().find(([id]) => id === categoryId) || [null, ''])[1];
+
+      if (!name) { alert('Name is required.'); return; }
+      if (isNaN(price) || price <= 0) { alert('Enter a valid price.'); return; }
+      if (isNaN(categoryId)) { alert('Stock hasn\'t finished loading yet — wait a moment and try again.'); return; }
+
+      const btn = document.getElementById('itemModalSaveBtn');
+      const wasNew = editingItemId == null;
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      try {
+        const id = editingItemId ?? Date.now();
+        const isAvailable = stock > 0;
+        await Promise.all([
+          set(ref(db, `pos_stock/${id}`), {
+            id, name, emoji, price, category_id: categoryId, category_name: categoryName,
+            stock, is_available: isAvailable,
+          }),
+          update(ref(db, `pos_menu/${id}`), { id, name, emoji, price, is_available: isAvailable }),
+        ]);
+        closeItemModal();
+        alert(`✅ ${wasNew ? 'Added' : 'Saved'}: ${emoji} ${name}\nLook for it under Menu Control (sorted A-Z).`);
+      } catch (e) {
+        alert('Failed to save: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save';
+      }
     };
 
     async function writeStock(id, value) {
@@ -418,6 +889,7 @@
       });
       renderOrders();
       renderKPIs();
+      renderAnalytics();
       renderTicker();
       setOnline(true);
       document.getElementById('lastUpdated').textContent = 'Last updated: ' + new Date().toLocaleTimeString('en-PH');
@@ -435,8 +907,8 @@
       renderMenuControl();
     });
 
-    // Refresh today label at midnight
-    setInterval(() => { todayLabel = new Date().toLocaleDateString(); renderKPIs(); }, 60000);
+    // Keep "today"/"this week" boundaries correct across midnight
+    setInterval(() => { renderKPIs(); renderAnalytics(); }, 60000);
   </script>
 </body>
 </html>

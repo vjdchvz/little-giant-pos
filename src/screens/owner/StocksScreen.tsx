@@ -13,19 +13,28 @@ import { stockAPI, StockItem } from '../../services/localApi';
 
 // ─── Bulk Restock Modal ───────────────────────────────────────────────────────
 function BulkRestockModal({ visible, onClose, onSave }: {
-  visible: boolean; onClose: () => void; onSave: (qty: number) => Promise<void>;
+  visible: boolean; onClose: () => void; onSave: (qty: number, onProgress: (done: number, total: number) => void) => Promise<void>;
 }) {
   const [qty, setQty] = useState('');
   const [saving, setSaving] = useState(false);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
 
   const submit = async () => {
     const n = parseInt(qty, 10);
     if (isNaN(n) || n <= 0) return;
     Keyboard.dismiss(); // release soft-input before the modal unmounts (Android tap-lock fix)
     setSaving(true);
-    try { await onSave(n); onClose(); setQty(''); }
-    finally { setSaving(false); }
+    setProgress({ done: 0, total: 0 });
+    try {
+      await onSave(n, (done, total) => setProgress({ done, total }));
+      onClose();
+      setQty('');
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const pct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -42,9 +51,20 @@ function BulkRestockModal({ visible, onClose, onSave }: {
             keyboardType="number-pad"
             autoFocus
             placeholder="e.g. 10"
+            editable={!saving}
           />
+          {saving && (
+            <View style={styles.progressWrap}>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${pct}%` }]} />
+              </View>
+              <Text style={styles.progressLabel}>
+                {progress.total > 0 ? `Syncing ${progress.done}/${progress.total} (${pct}%)` : 'Updating stock…'}
+              </Text>
+            </View>
+          )}
           <View style={styles.sheetBtns}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); onClose(); }}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); onClose(); }} disabled={saving}>
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.5 }]} onPress={submit} disabled={saving}>
@@ -208,11 +228,9 @@ export default function StocksScreen() {
     updateLocal(updated.id, updated.stock);
   };
 
-  const handleBulkRestock = async (qty: number) => {
-    for (const item of items) {
-      await stockAPI.restock(item.id, qty);
-    }
-    await load(true);
+  const handleBulkRestock = async (qty: number, onProgress: (done: number, total: number) => void) => {
+    const updated = await stockAPI.bulkRestock(qty, onProgress);
+    setItems(updated);
   };
 
   // Group by category
@@ -338,6 +356,10 @@ const styles = StyleSheet.create({
   sheetTitle:   { fontSize: Typography.md, fontWeight: Typography.bold, color: Colors.textPrimary, marginBottom: 4 },
   sheetSub:     { fontSize: Typography.sm, color: Colors.textMuted, marginBottom: Spacing.xl },
   inputLabel:   { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary, marginBottom: Spacing.xs },
+  progressWrap:  { marginTop: Spacing.lg },
+  progressTrack: { height: 8, borderRadius: 4, backgroundColor: Colors.gray100, overflow: 'hidden' },
+  progressFill:  { height: '100%', borderRadius: 4, backgroundColor: Colors.primary },
+  progressLabel: { fontSize: Typography.xs, color: Colors.textMuted, marginTop: Spacing.xs, textAlign: 'center' },
   input:        { backgroundColor: Colors.bgSecondary, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, fontSize: Typography.md, fontWeight: Typography.bold, color: Colors.textPrimary, marginBottom: Spacing.xl, textAlign: 'center' },
   sheetBtns:    { flexDirection: 'row', gap: Spacing.md },
   cancelBtn:    { flex: 1, padding: Spacing.md, borderRadius: Radius.md, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center' },

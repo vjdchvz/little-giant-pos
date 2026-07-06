@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { listenOrders, listenStock, listenMenu, flushPendingSyncs } from '../services/firebaseSync';
-import { applyStockToSQLite, applyMenuToSQLite, applyOrdersToSQLite } from '../services/cloudSync';
+import { applyStockToSQLite, applyMenuToSQLite, applyOrdersToSQLite, archiveMissingLocally } from '../services/cloudSync';
 import { useDashboardStore, useStockStore, useMenuStore } from '../store';
 import { Order } from '../types';
 import { StockItem } from '../services/localApi';
@@ -24,6 +24,7 @@ export function useFirebaseSync() {
     // Live stock → SQLite + nav badge
     const unsubStock = listenStock((items: StockItem[]) => {
       applyStockToSQLite(items);
+      archiveMissingLocally(items.map(i => i.id)); // mirror remote deletes locally
       triggerRefresh(); // tell MenuScreen to reload
       const mapped = items.map(i => ({
         id: i.id, name: i.name, emoji: i.emoji ?? '📦', unit: 'pcs',

@@ -23,10 +23,17 @@ async function writeQueue(ops: QueuedOp[]): Promise<void> {
   try { await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(ops)); } catch {}
 }
 
-export async function enqueue(op: QueuedOp): Promise<void> {
-  const ops = await readQueue();
-  ops.push(op);
-  await writeQueue(ops);
+// Serialize enqueue calls — concurrent bulk operations (e.g. bulk restock of
+// 147 items) can call enqueue() many times in parallel; without this chain,
+// concurrent read-modify-write of the same AsyncStorage key drops entries.
+let enqueueChain: Promise<void> = Promise.resolve();
+export function enqueue(op: QueuedOp): Promise<void> {
+  enqueueChain = enqueueChain.then(async () => {
+    const ops = await readQueue();
+    ops.push(op);
+    await writeQueue(ops);
+  });
+  return enqueueChain;
 }
 
 export async function queueSize(): Promise<number> {

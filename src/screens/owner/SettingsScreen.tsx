@@ -156,6 +156,7 @@ function ItemModal({ visible, item, onClose, onSave }: ItemModalProps) {
 export default function SettingsScreen() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [menuListExpanded, setMenuListExpanded] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [togglingId, setTogglingId] = useState<number | null>(null);
@@ -305,45 +306,60 @@ export default function SettingsScreen() {
         {/* Menu Management — owner only */}
         {role === 'owner' && <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Menu Items</Text>
+            <TouchableOpacity
+              style={styles.collapseToggle}
+              onPress={() => setMenuListExpanded(v => !v)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={menuListExpanded ? 'chevron-down' : 'chevron-forward'}
+                size={16}
+                color={Colors.textSecondary}
+              />
+              <Text style={styles.sectionTitle}>Menu Items ({menuItems.length})</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
               <Ionicons name="add" size={16} color={Colors.white} />
               <Text style={styles.addBtnText}>Add Item</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.sectionCard}>
-            {loading ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator size="small" color={Colors.primary} />
-              </View>
-            ) : menuItems.length === 0 ? (
-              <Text style={styles.emptyText}>No menu items yet. Tap "Add Item" to start.</Text>
-            ) : (
-              menuItems.map((item, i) => (
-                <View key={item.id} style={[styles.menuItemRow, i < menuItems.length - 1 && styles.rowBorder]}>
-                  <Text style={styles.menuItemEmoji}>{item.emoji}</Text>
-                  <View style={styles.menuItemInfo}>
-                    <Text style={styles.menuItemName}>{item.name}</Text>
-                    <Text style={styles.menuItemPrice}>₱{item.price.toFixed(2)} · {item.category_name}</Text>
-                  </View>
-                  <TouchableOpacity style={styles.iconBtn} onPress={() => openEdit(item)}>
-                    <Ionicons name="pencil-outline" size={16} color={Colors.textSecondary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.iconBtn} onPress={() => handleDelete(item)}>
-                    <Ionicons name="trash-outline" size={16} color={Colors.danger} />
-                  </TouchableOpacity>
-                  <Switch
-                    value={item.is_available}
-                    onValueChange={() => toggleAvailability(item)}
-                    disabled={togglingId === item.id}
-                    trackColor={{ false: Colors.gray300, true: Colors.successLight }}
-                    thumbColor={item.is_available ? Colors.success : Colors.gray500}
-                  />
+          {menuListExpanded && (
+            <View style={styles.sectionCard}>
+              {loading ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
                 </View>
-              ))
-            )}
-          </View>
+              ) : menuItems.length === 0 ? (
+                <Text style={styles.emptyText}>No menu items yet. Tap "Add Item" to start.</Text>
+              ) : (
+                <ScrollView style={styles.menuListScroll} nestedScrollEnabled>
+                  {menuItems.map((item, i) => (
+                    <View key={item.id} style={[styles.menuItemRow, i < menuItems.length - 1 && styles.rowBorder]}>
+                      <Text style={styles.menuItemEmoji}>{item.emoji}</Text>
+                      <View style={styles.menuItemInfo}>
+                        <Text style={styles.menuItemName}>{item.name}</Text>
+                        <Text style={styles.menuItemPrice}>₱{item.price.toFixed(2)} · {item.category_name}</Text>
+                      </View>
+                      <TouchableOpacity style={styles.iconBtn} onPress={() => openEdit(item)}>
+                        <Ionicons name="pencil-outline" size={16} color={Colors.textSecondary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.iconBtn} onPress={() => handleDelete(item)}>
+                        <Ionicons name="trash-outline" size={16} color={Colors.danger} />
+                      </TouchableOpacity>
+                      <Switch
+                        value={item.is_available}
+                        onValueChange={() => toggleAvailability(item)}
+                        disabled={togglingId === item.id}
+                        trackColor={{ false: Colors.gray300, true: Colors.successLight }}
+                        thumbColor={item.is_available ? Colors.success : Colors.gray500}
+                      />
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+          )}
         </View>}
 
         {/* Cloud sync */}
@@ -391,7 +407,7 @@ export default function SettingsScreen() {
 
         {/* About */}
         <Section title="About">
-          <SettingRow label="App Version" value="1.0.7" icon="information-circle-outline" />
+          <SettingRow label="App Version" value="1.0.8" icon="information-circle-outline" />
           <SettingRow label="Logged in as" value={`${deviceName} (${role ?? '?'})`} icon="person-outline" />
           <SettingRow label="Built by" value="VJ Dechavez" icon="code-slash-outline" last />
         </Section>
@@ -438,6 +454,8 @@ const styles = StyleSheet.create({
 
   section:          { marginBottom: Spacing.xl },
   sectionHeader:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm },
+  collapseToggle:   { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 },
+  menuListScroll:   { maxHeight: 340 },
   sectionTitle:     { fontSize: Typography.xs, fontWeight: Typography.bold, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginLeft: Spacing.xs },
   sectionCard:      { backgroundColor: Colors.white, borderRadius: Radius.lg, overflow: 'hidden', ...Shadow.sm },
 

@@ -6,6 +6,21 @@ import { getDB } from '../db';
 import { Order } from '../types';
 import { StockItem } from './localApi';
 
+// pos_stock always carries the FULL current set of items — any menu_item id
+// missing from it (e.g. deleted from the web admin or another device) is
+// archived locally so it stops being sellable everywhere, not just remotely.
+export async function archiveMissingLocally(presentIds: number[]) {
+  if (presentIds.length === 0) return; // never archive everything on an empty/partial payload
+  try {
+    const db = await getDB();
+    const placeholders = presentIds.map(() => '?').join(',');
+    await db.runAsync(
+      `UPDATE menu_items SET is_archived = 1 WHERE is_archived = 0 AND id NOT IN (${placeholders})`,
+      presentIds
+    );
+  } catch (e) { console.warn('[Sync] archiveMissingLocally failed:', e); }
+}
+
 export async function applyStockToSQLite(items: StockItem[]) {
   try {
     const db = await getDB();
@@ -14,9 +29,14 @@ export async function applyStockToSQLite(items: StockItem[]) {
       for (const item of items) {
         // Derive availability from stock count — never trust stale Firebase is_available
         const isAvail = item.stock > 0 ? 1 : 0;
+        // Upsert: items created remotely (e.g. from the web admin) don't exist
+        // locally yet — INSERT them; existing rows only get stock/availability
+        // touched here so name/price edits made elsewhere aren't clobbered.
         await db.runAsync(
-          'UPDATE menu_items SET stock = ?, is_available = ? WHERE id = ?',
-          [item.stock, isAvail, item.id]
+          `INSERT INTO menu_items (id, name, price, emoji, category_id, is_available, is_archived, stock)
+           VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+           ON CONFLICT(id) DO UPDATE SET stock = excluded.stock, is_available = excluded.is_available`,
+          [item.id, item.name, item.price ?? 0, item.emoji, item.category_id, isAvail, item.stock]
         );
       }
     });

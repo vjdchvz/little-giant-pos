@@ -2,7 +2,6 @@
 // Monkeypatches Text/TextInput once so every rendered font size is scaled by a
 // user-controlled multiplier (Settings → Text Size). Because all our styles use
 // explicit numeric fontSize, we scale it at render time.
-import React from 'react';
 import { Text, TextInput, StyleSheet } from 'react-native';
 
 export const FONT_SCALE_OPTIONS = [
@@ -28,17 +27,21 @@ export function enableGlobalFontScaling() {
   for (const Comp of [Text, TextInput] as any[]) {
     const origRender = Comp.render;
     if (typeof origRender !== 'function') continue;
-    Comp.render = function (...args: any[]) {
-      const el = origRender.apply(this, args);
-      if (!el) return el;
-      const flat = StyleSheet.flatten(el.props?.style) || {};
-      const fs = flat.fontSize;
-      if (typeof fs === 'number' && globalScale !== 1) {
-        return React.cloneElement(el, {
-          style: [el.props.style, { fontSize: Math.round(fs * globalScale) }],
-        });
+    // Patch the INPUT props before the original render runs, instead of
+    // inspecting the returned element — Text's render returns a
+    // <TextAncestor.Provider> wrapper first, so its own `style` prop is
+    // always undefined and post-render inspection silently does nothing.
+    Comp.render = function (props: any, ref: any) {
+      if (globalScale !== 1 && props?.style) {
+        const flat = StyleSheet.flatten(props.style) || {};
+        if (typeof flat.fontSize === 'number') {
+          props = {
+            ...props,
+            style: [props.style, { fontSize: Math.round(flat.fontSize * globalScale) }],
+          };
+        }
       }
-      return el;
+      return origRender(props, ref);
     };
   }
 }
