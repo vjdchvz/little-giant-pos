@@ -29,6 +29,7 @@ export default function OrderSuccessScreen() {
     try {
       await printReceipt(order, change);
     } catch (e: any) {
+      console.error('[OrderSuccess] print failed:', e?.message ?? e, e);
       setPrintFailed(true);
       if (!silent) Alert.alert('Print failed', e?.message ?? 'Could not print the receipt.');
     } finally {
