@@ -12,6 +12,17 @@ export async function getDB(): Promise<SQLite.SQLiteDatabase> {
   return _db;
 }
 
+// Global write lock: expo-sqlite throws "cannot start a transaction within a
+// transaction" when two withTransactionAsync calls overlap (e.g. the Firebase
+// stock + menu listeners both firing on connect, or a sale committing while a
+// background sync runs). Every transaction in the app must go through this.
+let writeChain: Promise<unknown> = Promise.resolve();
+export function withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = writeChain.then(fn, fn);
+  writeChain = run.catch(() => undefined);
+  return run;
+}
+
 async function migrate(db: SQLite.SQLiteDatabase) {
   // Create tables
   await db.execAsync(`

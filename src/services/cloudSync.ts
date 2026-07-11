@@ -2,7 +2,7 @@
 // Shared by the live listeners (useFirebaseSync) and the manual "Sync Now".
 import { ref, get } from 'firebase/database';
 import { db as fdb } from './firebase';
-import { getDB } from '../db';
+import { getDB, withWriteLock } from '../db';
 import { Order } from '../types';
 import { StockItem } from './localApi';
 
@@ -25,7 +25,7 @@ export async function applyStockToSQLite(items: StockItem[]) {
   try {
     const db = await getDB();
     // One transaction instead of N autocommits — avoids blocking the JS thread
-    await db.withTransactionAsync(async () => {
+    await withWriteLock(() => db.withTransactionAsync(async () => {
       for (const item of items) {
         // Derive availability from stock count — never trust stale Firebase is_available
         const isAvail = item.stock > 0 ? 1 : 0;
@@ -39,14 +39,14 @@ export async function applyStockToSQLite(items: StockItem[]) {
           [item.id, item.name, item.price ?? 0, item.emoji, item.category_id, isAvail, item.stock]
         );
       }
-    });
+    }));
   } catch (e) { console.warn('[Sync] applyStock failed:', e); }
 }
 
 export async function applyMenuToSQLite(items: { id: number; is_available?: boolean; price?: number }[]) {
   try {
     const db = await getDB();
-    await db.withTransactionAsync(async () => {
+    await withWriteLock(() => db.withTransactionAsync(async () => {
       for (const item of items) {
         if (item.is_available !== undefined && item.price !== undefined) {
           await db.runAsync('UPDATE menu_items SET is_available = ?, price = ? WHERE id = ?',
@@ -59,7 +59,7 @@ export async function applyMenuToSQLite(items: { id: number; is_available?: bool
             [item.price, item.id]);
         }
       }
-    });
+    }));
   } catch (e) { console.warn('[Sync] applyMenu failed:', e); }
 }
 

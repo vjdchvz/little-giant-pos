@@ -1,5 +1,5 @@
 // src/services/localApi.ts — v5: Firebase sync layer
-import { getDB } from '../db';
+import { getDB, withWriteLock } from '../db';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { MenuItem, Order, CartItem, PaymentMethod, DailySummary } from '../types';
@@ -132,10 +132,10 @@ export const ordersAPI = {
   // Wipe all sales/orders locally AND in Firebase (owner reset)
   clearSalesData: async (): Promise<void> => {
     const db = await getDB();
-    await db.withTransactionAsync(async () => {
+    await withWriteLock(() => db.withTransactionAsync(async () => {
       await db.runAsync('DELETE FROM order_items');
       await db.runAsync('DELETE FROM orders');
-    });
+    }));
     try {
       await clearFirebaseOrders();
     } catch (e) { console.warn('[Reset] clearFirebaseOrders failed:', e); }
@@ -170,7 +170,7 @@ export const ordersAPI = {
     const deviceCode = await getDeviceCode();
     const orderNumber = `LG-${deviceCode}${((count?.c ?? 0) + 1).toString().padStart(4, '0')}`;
 
-    await db.withTransactionAsync(async () => {
+    await withWriteLock(() => db.withTransactionAsync(async () => {
       const result = await db.runAsync(
         `INSERT INTO orders (order_number, status, payment_method, subtotal, discount, total, cashier_name, notes)
          VALUES (?, 'completed', ?, ?, ?, ?, ?, ?)`,
@@ -194,7 +194,7 @@ export const ordersAPI = {
           [item.menu_item_id]
         );
       }
-    });
+    }));
 
     const order = await db.getFirstAsync<any>('SELECT * FROM orders WHERE order_number = ?', [orderNumber]);
     const items = await db.getAllAsync<any>('SELECT * FROM order_items WHERE order_id = ?', [order.id]);
@@ -257,7 +257,7 @@ export const ordersAPI = {
     if (current.status === 'voided') return ordersAPI.getById(id);
 
     let restoredIds: number[] = [];
-    await db.withTransactionAsync(async () => {
+    await withWriteLock(() => db.withTransactionAsync(async () => {
       await db.runAsync(`UPDATE orders SET status = 'voided', notes = ? WHERE id = ? AND status != 'voided'`, [`VOID: ${reason}`, id]);
       const items = await db.getAllAsync<any>('SELECT * FROM order_items WHERE order_id = ?', [id]);
       for (const oi of items) {
@@ -267,7 +267,7 @@ export const ordersAPI = {
         );
       }
       restoredIds = [...new Set(items.map((oi: any) => oi.menu_item_id))];
-    });
+    }));
     const voided = await ordersAPI.getById(id);
     pushVoid(voided.order_number, reason); // sync order status to Firebase
 
