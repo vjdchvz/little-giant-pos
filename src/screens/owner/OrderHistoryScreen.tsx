@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
 import { ordersAPI } from '../../services/localApi';
+import { printReceipt } from '../../services/printerService';
 import { Order, PaymentMethod } from '../../types';
 
 const PAY_COLORS: Record<PaymentMethod, string> = {
@@ -31,8 +32,21 @@ function ReceiptModal({ order, onClose, onVoid }: {
   const [voidMode, setVoidMode] = useState(false);
   const [reason, setReason] = useState('');
   const [voiding, setVoiding] = useState(false);
+  const [reprinting, setReprinting] = useState(false);
 
   useEffect(() => { if (!order) { setVoidMode(false); setReason(''); } }, [order]);
+
+  const handleReprint = async () => {
+    if (!order) return;
+    setReprinting(true);
+    try {
+      await printReceipt(order);
+    } catch (e: any) {
+      Alert.alert('Print failed', e?.message ?? 'Could not print the receipt.');
+    } finally {
+      setReprinting(false);
+    }
+  };
 
   const handleVoid = async () => {
     if (!order || !reason.trim()) return;
@@ -113,6 +127,13 @@ function ReceiptModal({ order, onClose, onVoid }: {
               </TouchableOpacity>
             )
           )}
+
+          <TouchableOpacity style={styles.reprintBtn} onPress={handleReprint} disabled={reprinting}>
+            {reprinting
+              ? <ActivityIndicator size="small" color={Colors.primary} />
+              : <><Ionicons name="print-outline" size={16} color={Colors.primary} /><Text style={styles.reprintBtnText}>Reprint Receipt</Text></>
+            }
+          </TouchableOpacity>
 
           <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
             <Text style={styles.closeBtnText}>Close</Text>
@@ -300,6 +321,8 @@ const styles = StyleSheet.create({
 
   closeBtn:         { marginTop: Spacing.md, padding: Spacing.md, borderRadius: Radius.md, backgroundColor: Colors.bgSecondary, alignItems: 'center' },
   closeBtnText:     { fontSize: Typography.base, fontWeight: Typography.medium, color: Colors.textSecondary },
+  reprintBtn:       { marginTop: Spacing.md, padding: Spacing.md, borderRadius: Radius.md, borderWidth: 1.5, borderColor: Colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs },
+  reprintBtnText:   { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.primary },
 
   cancelBtn:        { flex: 1, padding: Spacing.md, borderRadius: Radius.md, backgroundColor: Colors.white, alignItems: 'center' },
   cancelBtnText:    { fontSize: Typography.sm, color: Colors.textSecondary },

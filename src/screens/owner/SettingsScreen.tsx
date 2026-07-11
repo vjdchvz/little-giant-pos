@@ -16,6 +16,10 @@ import { MenuItem } from '../../types';
 import { useAuthStore } from '../../store';
 import { FONT_SCALE_OPTIONS } from '../../theme/fontScale';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  scanForDevices, connectToPrinter, getSavedPrinter, forgetPrinter, printTestLine,
+  BluetoothDevice,
+} from '../../services/printerService';
 
 // One-time cloud menu seed per app session (prevents repeated 147-item pushes)
 let seededMenuThisSession = false;
@@ -152,6 +156,154 @@ function ItemModal({ visible, item, onClose, onSave }: ItemModalProps) {
   );
 }
 
+// ─── Receipt Printer Modal ─────────────────────────────────────────────────
+function PrinterModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const [saved, setSaved] = useState<BluetoothDevice | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [connectingAddr, setConnectingAddr] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [devices, setDevices] = useState<{ paired: BluetoothDevice[]; found: BluetoothDevice[] }>({ paired: [], found: [] });
+
+  useEffect(() => {
+    if (!visible) return;
+    getSavedPrinter().then(setSaved);
+    setDevices({ paired: [], found: [] });
+  }, [visible]);
+
+  const handleScan = async () => {
+    setScanning(true);
+    try {
+      const result = await scanForDevices();
+      setDevices(result);
+    } catch (e: any) {
+      Alert.alert('Scan failed', e?.message ?? 'Could not scan for Bluetooth devices. Make sure Bluetooth is on.');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleConnect = async (device: BluetoothDevice) => {
+    setConnectingAddr(device.address);
+    try {
+      await connectToPrinter(device);
+      setSaved(device);
+      Alert.alert('Connected', `Paired with "${device.name || device.address}". This printer will be used for receipts.`);
+    } catch (e: any) {
+      Alert.alert('Connection failed', e?.message ?? 'Could not connect to this device.');
+    } finally {
+      setConnectingAddr(null);
+    }
+  };
+
+  const handleForget = () => {
+    Alert.alert('Forget Printer?', 'You\'ll need to pair again to print receipts.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Forget', style: 'destructive', onPress: async () => { await forgetPrinter(); setSaved(null); } },
+    ]);
+  };
+
+  const handleTestPrint = async () => {
+    setTesting(true);
+    try {
+      await printTestLine();
+    } catch (e: any) {
+      Alert.alert('Test print failed', e?.message ?? 'Could not print.');
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const renderDevice = (d: BluetoothDevice) => {
+    const isSaved = saved?.address === d.address;
+    const isConnecting = connectingAddr === d.address;
+    return (
+      <TouchableOpacity
+        key={d.address}
+        style={[styles.printerRow, isSaved && styles.printerRowActive]}
+        onPress={() => handleConnect(d)}
+        disabled={isConnecting}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="print-outline" size={18} color={isSaved ? Colors.success : Colors.textSecondary} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.printerName}>{d.name || 'Unknown device'}</Text>
+          <Text style={styles.printerAddr}>{d.address}</Text>
+        </View>
+        {isConnecting
+          ? <ActivityIndicator size="small" color={Colors.primary} />
+          : isSaved
+            ? <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+            : null}
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalSheet, { maxHeight: '85%' }]}>
+          <View style={styles.modalHandle} />
+          <Text style={styles.modalTitle}>Receipt Printer</Text>
+
+          {saved && (
+            <View style={styles.printerCurrentBox}>
+              <Ionicons name="bluetooth" size={16} color={Colors.success} />
+              <Text style={styles.printerCurrentText} numberOfLines={1}>
+                Paired: {saved.name || saved.address}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.printerActionsRow}>
+            <TouchableOpacity style={styles.printerScanBtn} onPress={handleScan} disabled={scanning}>
+              {scanning
+                ? <ActivityIndicator size="small" color={Colors.white} />
+                : <><Ionicons name="bluetooth-outline" size={16} color={Colors.white} /><Text style={styles.printerScanBtnText}>Scan for Printers</Text></>
+              }
+            </TouchableOpacity>
+            {saved && (
+              <TouchableOpacity style={styles.printerTestBtn} onPress={handleTestPrint} disabled={testing}>
+                {testing ? <ActivityIndicator size="small" color={Colors.primary} /> : <Text style={styles.printerTestBtnText}>Test Print</Text>}
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <ScrollView style={{ maxHeight: 320, marginTop: Spacing.md }}>
+            {devices.paired.length > 0 && (
+              <>
+                <Text style={styles.printerSectionLabel}>Paired Devices</Text>
+                {devices.paired.map(renderDevice)}
+              </>
+            )}
+            {devices.found.length > 0 && (
+              <>
+                <Text style={styles.printerSectionLabel}>Nearby Devices</Text>
+                {devices.found.map(renderDevice)}
+              </>
+            )}
+            {!scanning && devices.paired.length === 0 && devices.found.length === 0 && (
+              <Text style={styles.emptyText}>
+                {saved ? 'Tap "Scan for Printers" to pair a different device.' : 'Turn on your printer, then tap "Scan for Printers".'}
+              </Text>
+            )}
+          </ScrollView>
+
+          <View style={styles.modalButtons}>
+            {saved && (
+              <TouchableOpacity style={styles.cancelBtn} onPress={handleForget}>
+                <Text style={[styles.cancelBtnText, { color: Colors.danger }]}>Forget Printer</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={styles.saveBtn} onPress={onClose}>
+              <Text style={styles.saveBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function SettingsScreen() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -169,6 +321,7 @@ export default function SettingsScreen() {
     AsyncStorage.setItem('font_scale_key', key).catch(() => {});
   };
 
+  const [printerModalVisible, setPrinterModalVisible] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const bumpMenuRefresh = useMenuStore(s => s.triggerRefresh);
   const bumpDashRefresh = useDashboardStore(s => s.triggerRefresh);
@@ -362,6 +515,22 @@ export default function SettingsScreen() {
           )}
         </View>}
 
+        {/* Receipt Printer */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Hardware</Text>
+          <View style={styles.sectionCard}>
+            <TouchableOpacity
+              style={styles.row}
+              onPress={() => setPrinterModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="print-outline" size={20} color={Colors.primary} style={{ marginRight: Spacing.md }} />
+              <Text style={styles.rowLabel}>Receipt Printer</Text>
+              <Ionicons name="chevron-forward" size={18} color={Colors.gray300} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Cloud sync */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Cloud</Text>
@@ -407,7 +576,7 @@ export default function SettingsScreen() {
 
         {/* About */}
         <Section title="About">
-          <SettingRow label="App Version" value="1.0.9" icon="information-circle-outline" />
+          <SettingRow label="App Version" value="1.1.0" icon="information-circle-outline" />
           <SettingRow label="Logged in as" value={`${deviceName} (${role ?? '?'})`} icon="person-outline" />
           <SettingRow label="Built by" value="VJ Dechavez" icon="code-slash-outline" last />
         </Section>
@@ -441,6 +610,10 @@ export default function SettingsScreen() {
         item={editingItem}
         onClose={closeModal}
         onSave={handleSave}
+      />
+      <PrinterModal
+        visible={printerModalVisible}
+        onClose={() => setPrinterModalVisible(false)}
       />
     </SafeAreaView>
   );
@@ -504,4 +677,17 @@ const styles = StyleSheet.create({
   fontChipLabel:    { fontSize: Typography.xs, color: Colors.textMuted },
   fontChipTextActive:{ color: Colors.primary },
   fontHint:         { fontSize: Typography.xs, color: Colors.textMuted, paddingHorizontal: Spacing.md, paddingBottom: Spacing.md },
+
+  printerCurrentBox:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.successLight, borderRadius: Radius.md, padding: Spacing.sm, marginBottom: Spacing.md },
+  printerCurrentText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.success, flex: 1 },
+  printerActionsRow:  { flexDirection: 'row', gap: Spacing.sm },
+  printerScanBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: Spacing.md },
+  printerScanBtnText: { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.white },
+  printerTestBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: Radius.md, paddingVertical: Spacing.md, paddingHorizontal: Spacing.lg, borderWidth: 1.5, borderColor: Colors.primary },
+  printerTestBtnText: { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.primary },
+  printerSectionLabel:{ fontSize: Typography.xs, fontWeight: Typography.bold, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: Spacing.md, marginBottom: Spacing.xs },
+  printerRow:         { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.xs },
+  printerRowActive:   { borderColor: Colors.success, backgroundColor: Colors.successLight },
+  printerName:        { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textPrimary },
+  printerAddr:        { fontSize: Typography.xs, color: Colors.textMuted, marginTop: 1 },
 });
