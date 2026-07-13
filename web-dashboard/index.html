@@ -227,6 +227,31 @@
     .seller-bar-wrap { width: 60px; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
     .seller-bar-fill { height: 100%; border-radius: 3px; background: var(--success); }
     .slow .seller-bar-fill { background: var(--danger); }
+
+    .day-row {
+      display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+      border-top: 1px solid var(--border); cursor: pointer; transition: background .15s;
+    }
+    .day-row:first-child { border-top: none; }
+    .day-row:hover { background: var(--cream); }
+    .day-row.selected { background: var(--primaryBg, #E8EDF7); }
+    .day-rank { width: 24px; font-size: 12px; font-weight: 800; color: var(--muted); text-align: center; }
+    .day-best-badge { font-size: 16px; }
+    .day-date { flex: 0 0 130px; font-size: 13px; font-weight: 700; color: var(--text); }
+    .day-orders { flex: 0 0 90px; font-size: 12px; color: var(--muted); }
+    .day-bar-wrap { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+    .day-bar-fill { height: 100%; border-radius: 4px; background: var(--navy); }
+    .day-bar-fill.best { background: var(--gold); }
+    .day-total { flex: 0 0 100px; text-align: right; font-size: 14px; font-weight: 800; color: var(--navy); }
+
+    .date-chip {
+      display: inline-flex; align-items: center; gap: 6px; background: var(--navy); color: #fff;
+      font-size: 12px; font-weight: 700; padding: 5px 10px 5px 12px; border-radius: 999px;
+    }
+    .date-chip button {
+      background: rgba(255,255,255,0.2); border: none; color: #fff; width: 16px; height: 16px;
+      border-radius: 50%; font-size: 11px; cursor: pointer; line-height: 1; display: flex; align-items: center; justify-content: center;
+    }
     .add-item-btn {
       background: var(--navy); color: #fff; border: none; border-radius: 8px;
       padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer;
@@ -370,7 +395,21 @@
       </div>
     </div>
 
-    <div class="section-title">Order History</div>
+    <div class="section-title-row">
+      <div class="section-title">📅 Daily Sales <span class="analytics-sub" id="dailySalesSub"></span></div>
+      <div class="period-tabs">
+        <button class="period-tab day-sort-tab active" data-sort="total" onclick="setDailySort('total')">Biggest First</button>
+        <button class="period-tab day-sort-tab" data-sort="date" onclick="setDailySort('date')">Newest First</button>
+      </div>
+    </div>
+    <div class="orders-card" id="dailySalesCard" style="margin-bottom:24px;">
+      <div class="empty-state">Loading…</div>
+    </div>
+
+    <div class="section-title-row">
+      <div class="section-title">Order History</div>
+      <div id="dateFilterChip"></div>
+    </div>
     <div class="orders-card">
       <table>
         <thead>
@@ -485,12 +524,14 @@
     let currentPeriod = 'today';
     window.setPeriod = function(p) {
       currentPeriod = p;
-      document.querySelectorAll('.period-tab').forEach(el => {
+      selectedDate = null; // switching periods clears any specific-date filter
+      document.querySelectorAll('#periodTabs .period-tab').forEach(el => {
         el.classList.toggle('active', el.dataset.period === p);
       });
       renderOrders();
       renderKPIs();
       renderAnalytics();
+      renderDateChip();
     };
 
     function inPeriod(ts, period) {
@@ -505,10 +546,95 @@
       return true;
     }
 
+    // ── Daily Sales ──────────────────────────────────────────────────────
+    let dailySortMode = 'total';
+    let selectedDate = null; // 'YYYY-MM-DD' (en-CA locale key) or null
+
+    function dateKey(ts) {
+      return new Date(ts).toLocaleDateString('en-CA');
+    }
+
+    function computeDailyTotals() {
+      const map = {};
+      for (const o of allOrders) {
+        if (o.status === 'voided') continue;
+        const key = dateKey(o.created_at);
+        if (!map[key]) map[key] = { key, total: 0, count: 0, sampleTs: o.created_at };
+        map[key].total += o.total || 0;
+        map[key].count += 1;
+      }
+      return Object.values(map);
+    }
+
+    function renderDailySales() {
+      const card = document.getElementById('dailySalesCard');
+      const days = computeDailyTotals();
+      document.getElementById('dailySalesSub').textContent = days.length ? `${days.length} day${days.length !== 1 ? 's' : ''} with sales` : '';
+      if (days.length === 0) {
+        card.innerHTML = '<div class="empty-state">No sales yet.</div>';
+        return;
+      }
+      const maxTotal = Math.max(...days.map(d => d.total));
+      const bestKey = days.find(d => d.total === maxTotal)?.key;
+      const sorted = [...days].sort((a, b) =>
+        dailySortMode === 'total' ? b.total - a.total : (b.key > a.key ? 1 : -1)
+      );
+      card.innerHTML = sorted.map((d, i) => {
+        const pct = Math.max(4, Math.round((d.total / maxTotal) * 100));
+        const isBest = d.key === bestKey;
+        const isSelected = d.key === selectedDate;
+        const label = new Date(d.sampleTs).toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+        return `<div class="day-row ${isSelected ? 'selected' : ''}" onclick="selectDate('${d.key}')">
+          <div class="day-rank">${isBest ? '<span class="day-best-badge">🏆</span>' : i + 1}</div>
+          <div class="day-date">${label}</div>
+          <div class="day-orders">${d.count} order${d.count !== 1 ? 's' : ''}</div>
+          <div class="day-bar-wrap"><div class="day-bar-fill ${isBest ? 'best' : ''}" style="width:${pct}%"></div></div>
+          <div class="day-total">₱${d.total.toFixed(2)}</div>
+        </div>`;
+      }).join('');
+    }
+
+    window.setDailySort = function(mode) {
+      dailySortMode = mode;
+      document.querySelectorAll('.day-sort-tab').forEach(el => {
+        el.classList.toggle('active', el.dataset.sort === mode);
+      });
+      renderDailySales();
+    };
+
+    window.selectDate = function(key) {
+      selectedDate = selectedDate === key ? null : key;
+      // A specific-date filter overrides the Today/Week/Month/All Time tabs —
+      // clear their active state so it's clear which filter mode is in effect.
+      document.querySelectorAll('#periodTabs .period-tab').forEach(el => el.classList.toggle('active', false));
+      renderDailySales();
+      renderOrders();
+      renderDateChip();
+    };
+
+    window.clearDateFilter = function() {
+      selectedDate = null;
+      document.querySelectorAll('#periodTabs .period-tab').forEach(el => {
+        el.classList.toggle('active', el.dataset.period === currentPeriod);
+      });
+      renderDailySales();
+      renderOrders();
+      renderDateChip();
+    };
+
+    function renderDateChip() {
+      const el = document.getElementById('dateFilterChip');
+      if (!selectedDate) { el.innerHTML = ''; return; }
+      const label = new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+      el.innerHTML = `<span class="date-chip">${label}<button onclick="clearDateFilter()">✕</button></span>`;
+    }
+
     function renderOrders() {
       const tbody = document.getElementById('ordersBody');
       const search = (document.getElementById('historySearch')?.value || '').toLowerCase().trim();
-      let filtered = allOrders.filter(o => inPeriod(o.created_at, currentPeriod));
+      let filtered = selectedDate
+        ? allOrders.filter(o => dateKey(o.created_at) === selectedDate)
+        : allOrders.filter(o => inPeriod(o.created_at, currentPeriod));
       if (search) {
         filtered = filtered.filter(o => {
           if ((o.order_number || '').toLowerCase().includes(search)) return true;
@@ -945,6 +1071,7 @@
       renderOrders();
       renderKPIs();
       renderAnalytics();
+      renderDailySales();
       renderTicker();
       setOnline(true);
       document.getElementById('lastUpdated').textContent = 'Last updated: ' + new Date().toLocaleTimeString('en-PH');
