@@ -3,5 +3,8 @@
     "public": "web-dashboard",
     "ignore": ["firebase.json", "**/.*"],
     "rewrites": [{ "source": "**", "destination": "/index.html" }]
+  },
+  "database": {
+    "rules": "database.rules.json"
   }
 }
