@@ -368,7 +368,7 @@
     <div class="period-tabs" id="periodTabs">
       <button class="period-tab active" data-period="today" onclick="setPeriod('today')">Today</button>
       <button class="period-tab" data-period="week" onclick="setPeriod('week')">This Week</button>
-      <button class="period-tab" data-period="month" onclick="setPeriod('month')">This Month</button>
+      <button class="period-tab" data-period="month" onclick="setPeriod('month')">Last 30 Days</button>
       <button class="period-tab" data-period="all" onclick="setPeriod('all')">All Time</button>
     </div>
 
@@ -534,6 +534,12 @@
       renderDateChip();
     };
 
+    // "week" and "month" are both trailing/rolling windows anchored to now, so
+    // periods always nest as Today ⊆ Week ⊆ Month ⊆ All Time. Previously
+    // "month" was calendar-anchored (reset on the 1st) while "week" rolled
+    // back 7 days — early in a month that made Week show MORE sales than
+    // Month, which looked like broken math even though each number was
+    // individually correct.
     function inPeriod(ts, period) {
       if (period === 'all') return true;
       const d = new Date(ts), now = new Date();
@@ -542,7 +548,10 @@
         const cutoff = new Date(now); cutoff.setDate(now.getDate() - 6); cutoff.setHours(0,0,0,0);
         return d >= cutoff;
       }
-      if (period === 'month') return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      if (period === 'month') {
+        const cutoff = new Date(now); cutoff.setDate(now.getDate() - 29); cutoff.setHours(0,0,0,0);
+        return d >= cutoff;
+      }
       return true;
     }
 
@@ -690,7 +699,7 @@
       }
     };
 
-    const PERIOD_LABELS = { today: "Today's Sales", week: "This Week's Sales", month: "This Month's Sales", all: "All-Time Sales" };
+    const PERIOD_LABELS = { today: "Today's Sales", week: "This Week's Sales", month: "Last 30 Days' Sales", all: "All-Time Sales" };
 
     function renderKPIs() {
       const periodOrders = allOrders.filter(o => o.status !== 'voided' && inPeriod(o.created_at, currentPeriod));
