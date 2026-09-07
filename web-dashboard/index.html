@@ -835,6 +835,14 @@
       }).join('');
       const inner = document.getElementById('tickerInner');
       inner.innerHTML = items + items; // duplicate for seamless loop
+
+      // Scroll at a constant, readable speed instead of a fixed 30s for the
+      // whole strip — with more orders the strip got longer but still had
+      // to finish in 30s, so it scrolled faster the busier the day got.
+      const halfWidth = inner.scrollWidth / 2;
+      const PX_PER_SECOND = 40;
+      const duration = Math.max(20, Math.round(halfWidth / PX_PER_SECOND));
+      inner.style.animationDuration = `${duration}s`;
     }
 
     // ── Stock ──────────────────────────────────────────────────────────
