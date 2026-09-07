@@ -228,6 +228,32 @@
     .seller-bar-fill { height: 100%; border-radius: 3px; background: var(--success); }
     .slow .seller-bar-fill { background: var(--danger); }
 
+    /* KPI period-over-period delta */
+    .kpi-delta-badge {
+      display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 700;
+      padding: 2px 8px; border-radius: 999px; margin-top: 6px;
+    }
+    .kpi-delta-badge.up { background: #DCFCE7; color: #16A34A; }
+    .kpi-delta-badge.down { background: #FEE2E2; color: var(--danger); }
+
+    /* Peak Hours heatmap */
+    .hour-chart { display: flex; align-items: flex-end; gap: 2px; height: 100px; }
+    .hour-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+    .hour-bar-wrap { width: 100%; height: 82px; display: flex; align-items: flex-end; }
+    .hour-bar { width: 100%; border-radius: 2px 2px 0 0; background: var(--navy); min-height: 2px; cursor: default; }
+    .hour-bar.peak { background: var(--gold); }
+    .hour-label { font-size: 8px; color: var(--muted); margin-top: 3px; height: 10px; white-space: nowrap; }
+
+    /* Day of week */
+    .dow-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); }
+    .dow-row:first-child { border-top: none; }
+    .dow-name { flex: 0 0 44px; font-size: 13px; font-weight: 700; color: var(--text); }
+    .dow-bar-wrap { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+    .dow-bar-fill { height: 100%; border-radius: 4px; background: var(--navy); }
+    .dow-bar-fill.best { background: var(--gold); }
+    .dow-total { flex: 0 0 150px; text-align: right; font-size: 13px; font-weight: 700; color: var(--navy); }
+    .dow-avg { font-weight: 500; color: var(--muted); font-size: 11px; }
+
     .day-row {
       display: flex; align-items: center; gap: 12px; padding: 12px 16px;
       border-top: 1px solid var(--border); cursor: pointer; transition: background .15s;
@@ -334,6 +360,7 @@
         <div class="kpi-label">Today's Sales</div>
         <div class="kpi-value" id="kpiSales">₱0.00</div>
         <div class="kpi-sub" id="kpiOrders">0 orders</div>
+        <div id="kpiDelta"></div>
       </div>
       <div class="kpi-card" style="border-left-color:var(--gold)">
         <div class="kpi-label">Last Order</div>
@@ -392,6 +419,16 @@
       <div class="analytics-card">
         <div class="analytics-title">🐌 Slow Movers <span class="analytics-sub" id="slowSub"></span></div>
         <div id="slowSellers"></div>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-bottom:16px;">
+      <div class="analytics-card">
+        <div class="analytics-title">⏰ Peak Hours <span class="analytics-sub" id="peakHoursSub"></span></div>
+        <div class="hour-chart" id="peakHoursChart"></div>
+      </div>
+      <div class="analytics-card">
+        <div class="analytics-title">📆 By Day of Week <span class="analytics-sub" id="dowSub"></span></div>
+        <div id="dowChart"></div>
       </div>
     </div>
 
@@ -555,6 +592,45 @@
       return true;
     }
 
+    // The equal-length window immediately preceding the current period —
+    // used for the "+X% vs last period" KPI badge. 'all' has no meaningful
+    // predecessor.
+    function inPreviousPeriod(ts, period) {
+      const d = new Date(ts), now = new Date();
+      if (period === 'today') {
+        const y = new Date(now); y.setDate(now.getDate() - 1);
+        return d.toLocaleDateString() === y.toLocaleDateString();
+      }
+      if (period === 'week') {
+        const end = new Date(now); end.setDate(now.getDate() - 6); end.setHours(0,0,0,0);
+        const start = new Date(now); start.setDate(now.getDate() - 13); start.setHours(0,0,0,0);
+        return d >= start && d < end;
+      }
+      if (period === 'month') {
+        const end = new Date(now); end.setDate(now.getDate() - 29); end.setHours(0,0,0,0);
+        const start = new Date(now); start.setDate(now.getDate() - 59); start.setHours(0,0,0,0);
+        return d >= start && d < end;
+      }
+      return false;
+    }
+
+    const PERIOD_PREV_LABELS = { today: 'yesterday', week: 'last week', month: 'prior 30 days' };
+
+    function renderPeriodDelta(currentTotal) {
+      const el = document.getElementById('kpiDelta');
+      if (currentPeriod === 'all') { el.innerHTML = ''; return; }
+      const prevTotal = allOrders
+        .filter(o => o.status !== 'voided' && inPreviousPeriod(o.created_at, currentPeriod))
+        .reduce((s, o) => s + (o.total || 0), 0);
+      if (prevTotal === 0) {
+        el.innerHTML = currentTotal > 0 ? `<span class="kpi-delta-badge up">▲ New</span>` : '';
+        return;
+      }
+      const pct = ((currentTotal - prevTotal) / prevTotal) * 100;
+      const up = pct >= 0;
+      el.innerHTML = `<span class="kpi-delta-badge ${up ? 'up' : 'down'}">${up ? '▲' : '▼'} ${Math.abs(pct).toFixed(0)}% vs ${PERIOD_PREV_LABELS[currentPeriod]}</span>`;
+    }
+
     // ── Daily Sales ──────────────────────────────────────────────────────
     let dailySortMode = 'total';
     let selectedDate = null; // 'YYYY-MM-DD' (en-CA locale key) or null
@@ -715,6 +791,7 @@
       document.getElementById('kpiDigital').textContent = `₱${digital.toFixed(2)}`;
       document.getElementById('kpiLast').textContent = last ? `₱${last.total.toFixed(2)}` : '—';
       document.getElementById('kpiLastTime').textContent = last ? `${last.order_number} · ${fmt(last.created_at)}` : 'No orders yet';
+      renderPeriodDelta(gross);
     }
 
     // ── Analytics: 7-day trend, payment split, best/slow sellers ───────
@@ -820,10 +897,78 @@
       renderSellerList('slowSellers', slow, maxQty, true);
     }
 
+    function formatHourLabel(h) {
+      const suffix = h < 12 ? 'AM' : 'PM';
+      let hh = h % 12; if (hh === 0) hh = 12;
+      return `${hh}${suffix}`;
+    }
+
+    // Respects the Today/Week/Month/All Time tabs, same as Payment Split
+    // and Best/Slow Sellers — "when are we busiest" is most useful scoped
+    // to whatever window the owner is already looking at.
+    function renderPeakHours() {
+      const periodOrders = allOrders.filter(o => o.status !== 'voided' && inPeriod(o.created_at, currentPeriod));
+      const byHour = Array(24).fill(0);
+      const countByHour = Array(24).fill(0);
+      for (const o of periodOrders) {
+        const h = new Date(o.created_at).getHours();
+        byHour[h] += o.total || 0;
+        countByHour[h] += 1;
+      }
+      const el = document.getElementById('peakHoursChart');
+      const realMax = Math.max(...byHour); // true max — 0 when the period has no sales at all
+      if (realMax === 0) {
+        document.getElementById('peakHoursSub').textContent = '';
+        el.innerHTML = '<div class="analytics-sub">No sales in this period.</div>';
+        return;
+      }
+      const peakHour = byHour.indexOf(realMax);
+      document.getElementById('peakHoursSub').textContent = `busiest: ${formatHourLabel(peakHour)}`;
+      el.innerHTML = byHour.map((v, h) => {
+        const pct = Math.max(2, Math.round((v / realMax) * 100));
+        const isPeak = v === realMax;
+        const label = h % 3 === 0 ? formatHourLabel(h) : '';
+        return `<div class="hour-col">
+          <div class="hour-bar-wrap"><div class="hour-bar ${isPeak ? 'peak' : ''}" style="height:${pct}%" title="${formatHourLabel(h)}: ₱${v.toFixed(2)} (${countByHour[h]} orders)"></div></div>
+          <div class="hour-label">${label}</div>
+        </div>`;
+      }).join('');
+    }
+
+    // Always all-time (like Daily Sales) — a weekday pattern needs a longer
+    // history to mean anything; scoping it to "Today" would only ever show
+    // one bar.
+    function renderDayOfWeek() {
+      const dowNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const buckets = dowNames.map(name => ({ name, total: 0, count: 0 }));
+      for (const o of allOrders) {
+        if (o.status === 'voided') continue;
+        const d = new Date(o.created_at);
+        buckets[d.getDay()].total += o.total || 0;
+        buckets[d.getDay()].count += 1;
+      }
+      const max = Math.max(...buckets.map(b => b.total), 1);
+      const bestIdx = buckets.reduce((bi, b, i, arr) => b.total > arr[bi].total ? i : bi, 0);
+      const hasData = buckets.some(b => b.total > 0);
+      document.getElementById('dowSub').textContent = hasData ? `best: ${buckets[bestIdx].name}` : '';
+      const el = document.getElementById('dowChart');
+      el.innerHTML = buckets.map((b, i) => {
+        const pct = Math.max(2, Math.round((b.total / max) * 100));
+        const avg = b.count ? b.total / b.count : 0;
+        const isBest = i === bestIdx && b.total > 0;
+        return `<div class="dow-row">
+          <div class="dow-name">${isBest ? '🏆 ' : ''}${b.name}</div>
+          <div class="dow-bar-wrap"><div class="dow-bar-fill ${isBest ? 'best' : ''}" style="width:${pct}%"></div></div>
+          <div class="dow-total">₱${b.total.toFixed(0)}<span class="dow-avg"> · avg ₱${avg.toFixed(0)}</span></div>
+        </div>`;
+      }).join('');
+    }
+
     function renderAnalytics() {
       renderTrendChart();
       renderPaySplit();
       renderSellers();
+      renderPeakHours();
     }
 
     function renderTicker() {
@@ -1089,6 +1234,7 @@
       renderKPIs();
       renderAnalytics();
       renderDailySales();
+      renderDayOfWeek();
       renderTicker();
       setOnline(true);
       document.getElementById('lastUpdated').textContent = 'Last updated: ' + new Date().toLocaleTimeString('en-PH');
