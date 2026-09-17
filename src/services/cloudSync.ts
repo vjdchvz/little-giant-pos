@@ -30,12 +30,23 @@ export async function applyStockToSQLite(items: StockItem[]) {
         // Derive availability from stock count — never trust stale Firebase is_available
         const isAvail = item.stock > 0 ? 1 : 0;
         // Upsert: items created remotely (e.g. from the web admin) don't exist
-        // locally yet — INSERT them; existing rows only get stock/availability
-        // touched here so name/price edits made elsewhere aren't clobbered.
+        // locally yet — INSERT them. Existing rows are fully synced too (name,
+        // price, emoji, category included) — every pushStock() call carries a
+        // fresh, complete snapshot read from that device's own DB right before
+        // sending, so this can never clobber a value with something stale.
+        // (Previously only stock/is_available updated on conflict, which meant
+        // a rename/reprice on one device — e.g. via the web admin — silently
+        // never reached any other device's local copy.)
         await db.runAsync(
           `INSERT INTO menu_items (id, name, price, emoji, category_id, is_available, is_archived, stock)
            VALUES (?, ?, ?, ?, ?, ?, 0, ?)
-           ON CONFLICT(id) DO UPDATE SET stock = excluded.stock, is_available = excluded.is_available`,
+           ON CONFLICT(id) DO UPDATE SET
+             name = excluded.name,
+             price = excluded.price,
+             emoji = excluded.emoji,
+             category_id = excluded.category_id,
+             stock = excluded.stock,
+             is_available = excluded.is_available`,
           [item.id, item.name, item.price ?? 0, item.emoji, item.category_id, isAvail, item.stock]
         );
       }
@@ -43,21 +54,20 @@ export async function applyStockToSQLite(items: StockItem[]) {
   } catch (e) { console.warn('[Sync] applyStock failed:', e); }
 }
 
-export async function applyMenuToSQLite(items: { id: number; is_available?: boolean; price?: number }[]) {
+export async function applyMenuToSQLite(items: { id: number; is_available?: boolean; price?: number; name?: string; emoji?: string }[]) {
   try {
     const db = await getDB();
     await withWriteLock(() => db.withTransactionAsync(async () => {
       for (const item of items) {
-        if (item.is_available !== undefined && item.price !== undefined) {
-          await db.runAsync('UPDATE menu_items SET is_available = ?, price = ? WHERE id = ?',
-            [item.is_available ? 1 : 0, item.price, item.id]);
-        } else if (item.is_available !== undefined) {
-          await db.runAsync('UPDATE menu_items SET is_available = ? WHERE id = ?',
-            [item.is_available ? 1 : 0, item.id]);
-        } else if (item.price !== undefined) {
-          await db.runAsync('UPDATE menu_items SET price = ? WHERE id = ?',
-            [item.price, item.id]);
-        }
+        const fields: string[] = [];
+        const values: any[] = [];
+        if (item.is_available !== undefined) { fields.push('is_available = ?'); values.push(item.is_available ? 1 : 0); }
+        if (item.price !== undefined) { fields.push('price = ?'); values.push(item.price); }
+        if (item.name !== undefined) { fields.push('name = ?'); values.push(item.name); }
+        if (item.emoji !== undefined) { fields.push('emoji = ?'); values.push(item.emoji); }
+        if (fields.length === 0) continue;
+        values.push(item.id);
+        await db.runAsync(`UPDATE menu_items SET ${fields.join(', ')} WHERE id = ?`, values);
       }
     }));
   } catch (e) { console.warn('[Sync] applyMenu failed:', e); }
