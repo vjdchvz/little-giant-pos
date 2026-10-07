@@ -8,6 +8,7 @@ export type QueuedOp =
   | { type: 'order'; order: any; cashierName?: string }
   | { type: 'void'; orderNumber: string; reason: string }
   | { type: 'stock'; item: any }
+  | { type: 'stock_full'; item: any }
   | { type: 'menu'; id: number; data: any };
 
 let flushing = false;
@@ -46,6 +47,7 @@ export async function flushQueue(senders: {
   sendOrder: (order: any, cashierName?: string) => Promise<void>;
   sendVoid: (orderNumber: string, reason: string) => Promise<void>;
   sendStock: (item: any) => Promise<void>;
+  sendStockFull: (item: any) => Promise<void>;
   sendMenu: (id: number, data: any) => Promise<void>;
 }): Promise<number> {
   if (flushing) return queueSize();
@@ -60,6 +62,7 @@ export async function flushQueue(senders: {
         if (op.type === 'order')      await senders.sendOrder(op.order, op.cashierName);
         else if (op.type === 'void')  await senders.sendVoid(op.orderNumber, op.reason);
         else if (op.type === 'stock') await senders.sendStock(op.item);
+        else if (op.type === 'stock_full') await senders.sendStockFull(op.item);
         else if (op.type === 'menu')  await senders.sendMenu(op.id, op.data);
       } catch {
         remaining.push(op); // still offline — keep for next flush

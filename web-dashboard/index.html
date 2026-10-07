@@ -1242,7 +1242,8 @@
 
     onValue(ref(db, 'pos_stock'), snap => {
       const val = snap.val();
-      allStock = val ? Object.values(val) : [];
+      // skip nameless {id, stock} stubs left by a phone selling an item deleted here
+      allStock = val ? Object.values(val).filter(s => s && s.name) : [];
       renderStock();
     });
 

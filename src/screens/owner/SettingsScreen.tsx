@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius, Shadow } from '../../theme';
 import { menuAPI, ordersAPI, stockAPI } from '../../services/localApi';
-import { pushMenuItem } from '../../services/firebaseSync';
+import { pushMenuItem, seedMissingMenu } from '../../services/firebaseSync';
 import { pullFromCloud } from '../../services/cloudSync';
 import { useDashboardStore, useSettingsStore, useMenuStore } from '../../store';
 import { MenuItem } from '../../types';
@@ -379,17 +379,13 @@ export default function SettingsScreen() {
 
   useEffect(() => { loadMenu(); }, []);
 
-  // Seed the full menu to the cloud once per app session (repopulates web
-  // dashboard if pos_menu was ever cleared). Guarded so it never loops.
+  // Once per app session, add any menu items missing from the cloud
+  // (repopulates the web dashboard if pos_menu was ever cleared). Only fills
+  // gaps — existing cloud entries are never overwritten from this device.
   useEffect(() => {
     if (seededMenuThisSession) return;
     seededMenuThisSession = true;
-    menuAPI.getAll().then(data => {
-      data.forEach(item => pushMenuItem(item.id, {
-        is_available: item.is_available, price: item.price,
-        name: item.name, emoji: item.emoji,
-      }));
-    }).catch(() => {});
+    menuAPI.getAll().then(data => seedMissingMenu(data)).catch(() => {});
   }, []);
 
   const openAdd = () => { setEditingItem(null); setModalVisible(true); };
@@ -576,7 +572,7 @@ export default function SettingsScreen() {
 
         {/* About */}
         <Section title="About">
-          <SettingRow label="App Version" value="1.1.2" icon="information-circle-outline" />
+          <SettingRow label="App Version" value="1.1.3" icon="information-circle-outline" />
           <SettingRow label="Logged in as" value={`${deviceName} (${role ?? '?'})`} icon="person-outline" />
           <SettingRow label="Built by" value="VJ Dechavez" icon="code-slash-outline" last />
         </Section>

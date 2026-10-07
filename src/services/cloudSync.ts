@@ -30,24 +30,22 @@ export async function applyStockToSQLite(items: StockItem[]) {
         // Derive availability from stock count — never trust stale Firebase is_available
         const isAvail = item.stock > 0 ? 1 : 0;
         // Upsert: items created remotely (e.g. from the web admin) don't exist
-        // locally yet — INSERT them. Existing rows are fully synced too (name,
-        // price, emoji, category included) — every pushStock() call carries a
-        // fresh, complete snapshot read from that device's own DB right before
-        // sending, so this can never clobber a value with something stale.
-        // (Previously only stock/is_available updated on conflict, which meant
-        // a rename/reprice on one device — e.g. via the web admin — silently
-        // never reached any other device's local copy.)
+        // locally yet — INSERT them. Existing rows also take name/emoji/category
+        // so renames reach every device. Price is only overwritten when the
+        // record actually carries one — older app versions never sent price in
+        // pos_stock, and treating "missing" as ₱0 would zero out the menu.
+        const price = typeof item.price === 'number' && item.price > 0 ? item.price : null;
         await db.runAsync(
           `INSERT INTO menu_items (id, name, price, emoji, category_id, is_available, is_archived, stock)
-           VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+           VALUES (?, ?, COALESCE(?, 0), ?, ?, ?, 0, ?)
            ON CONFLICT(id) DO UPDATE SET
              name = excluded.name,
-             price = excluded.price,
+             price = COALESCE(?, menu_items.price),
              emoji = excluded.emoji,
              category_id = excluded.category_id,
              stock = excluded.stock,
              is_available = excluded.is_available`,
-          [item.id, item.name, item.price ?? 0, item.emoji, item.category_id, isAvail, item.stock]
+          [item.id, item.name, price, item.emoji, item.category_id, isAvail, item.stock, price]
         );
       }
     }));
@@ -119,7 +117,7 @@ export async function pullFromCloud(): Promise<{ stock: number; menu: number; or
     get(ref(fdb, 'pos_orders')),
   ]);
 
-  const stock = stockSnap.val() ? Object.values(stockSnap.val()) as StockItem[] : [];
+  const stock = stockSnap.val() ? (Object.values(stockSnap.val()) as StockItem[]).filter(i => i && i.name) : [];
   const menu = menuSnap.val() ? Object.values(menuSnap.val()) as any[] : [];
   const orders = ordersSnap.val() ? Object.values(ordersSnap.val()) as Order[] : [];
 

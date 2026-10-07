@@ -1,5 +1,5 @@
 // src/services/firebaseSync.ts — Realtime Database two-way sync (offline-aware)
-import { ref, set, update, onValue, off } from 'firebase/database';
+import { ref, set, update, get, onValue, off } from 'firebase/database';
 import { db } from './firebase';
 import { Order } from '../types';
 import { StockItem } from './localApi';
@@ -36,9 +36,21 @@ async function sendVoid(orderNumber: string, reason: string): Promise<void> {
   });
 }
 
+// Stock-only write (sales, voids, restocks, waste). Deliberately does NOT send
+// name/price/emoji/category: this device's copy of those may be stale, and a
+// full overwrite here used to revert edits made from the web admin. Also used
+// for old full-snapshot ops still sitting in the outbox, which downgrades them
+// to stock-only on replay.
 async function sendStock(item: any): Promise<void> {
+  await update(ref(db, `pos_stock/${item.id}`), {
+    id: item.id, stock: item.stock, is_available: item.is_available,
+  });
+}
+
+// Full record write — only when the item itself was created/edited here.
+async function sendStockFull(item: any): Promise<void> {
   await set(ref(db, `pos_stock/${item.id}`), {
-    id: item.id, name: item.name, emoji: item.emoji,
+    id: item.id, name: item.name, emoji: item.emoji, price: item.price,
     category_id: item.category_id, category_name: item.category_name,
     stock: item.stock, is_available: item.is_available,
   });
@@ -64,6 +76,11 @@ export async function pushStock(item: StockItem): Promise<void> {
   catch { await enqueue({ type: 'stock', item }); }
 }
 
+export async function pushStockFull(item: StockItem): Promise<void> {
+  try { await sendStockFull(item); }
+  catch { await enqueue({ type: 'stock_full', item }); }
+}
+
 export async function pushStockBulk(items: StockItem[]): Promise<void> {
   await Promise.allSettled(items.map(pushStock));
 }
@@ -73,9 +90,25 @@ export async function pushMenuItem(id: number, data: { is_available?: boolean; p
   catch { await enqueue({ type: 'menu', id, data }); }
 }
 
+// Fill pos_menu entries that are missing in the cloud (e.g. pos_menu was
+// cleared). Never overwrites existing entries — this device's names/prices
+// may be stale, and re-pushing all of them used to undo web-admin edits.
+export async function seedMissingMenu(items: { id: number; is_available: boolean; price: number; name: string; emoji: string }[]): Promise<void> {
+  try {
+    const snap = await get(ref(db, 'pos_menu'));
+    const existing = snap.val() ?? {};
+    const updates: Record<string, any> = {};
+    for (const i of items) {
+      if (existing[i.id]) continue;
+      updates[`pos_menu/${i.id}`] = { id: i.id, is_available: i.is_available, price: i.price, name: i.name, emoji: i.emoji };
+    }
+    if (Object.keys(updates).length) await update(ref(db), updates);
+  } catch (e) { console.warn('[Sync] seedMissingMenu failed:', e); }
+}
+
 // ─── Flush outbox (call when connectivity returns) ───────────────────────────
 export async function flushPendingSyncs(): Promise<number> {
-  return flushQueue({ sendOrder, sendVoid, sendStock, sendMenu });
+  return flushQueue({ sendOrder, sendVoid, sendStock, sendStockFull, sendMenu });
 }
 
 // ─── Clear all orders (owner reset) ──────────────────────────────────────────
@@ -111,7 +144,9 @@ export function listenStock(onData: (items: StockItem[]) => void): () => void {
   onValue(r, snap => {
     const val = snap.val();
     if (!val) return;
-    onData(Object.values(val) as StockItem[]);
+    // A stock-only write for an item deleted elsewhere leaves a nameless
+    // {id, stock, is_available} stub — treat it as deleted, not as an item.
+    onData((Object.values(val) as StockItem[]).filter(i => i && i.name));
   }, err => console.warn('[Sync] listenStock error:', err));
   return () => off(r);
 }

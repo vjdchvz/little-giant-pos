@@ -3,7 +3,7 @@ import { getDB, withWriteLock } from '../db';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { MenuItem, Order, CartItem, PaymentMethod, DailySummary } from '../types';
-import { pushOrder, pushVoid, pushStock, pushStockBulk, clearFirebaseOrders, pushMenuItem, removeMenuItem } from './firebaseSync';
+import { pushOrder, pushVoid, pushStock, pushStockFull, pushStockBulk, clearFirebaseOrders, pushMenuItem, removeMenuItem } from './firebaseSync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Per-device code so order numbers are globally unique across devices, even
@@ -77,11 +77,15 @@ export const menuAPI = {
   addItem: async (data: { name: string; price: number; emoji: string; category_id: number | null; stock?: number }): Promise<number> => {
     const db = await getDB();
     const stock = data.stock ?? 0;
-    const res = await db.runAsync(
-      'INSERT INTO menu_items (name, price, emoji, category_id, is_available, is_archived, stock) VALUES (?, ?, ?, ?, ?, 0, ?)',
+    // RETURNING instead of runAsync().lastInsertRowId: expo-sqlite's Android
+    // bridge truncates lastInsertRowId to a 32-bit int, so once ids pass
+    // 2,147,483,647 (items added from the web admin use Date.now() ids) every
+    // new item was pushed to pos_menu under a wrapped, negative id.
+    const res = await db.getFirstAsync<{ id: number }>(
+      'INSERT INTO menu_items (name, price, emoji, category_id, is_available, is_archived, stock) VALUES (?, ?, ?, ?, ?, 0, ?) RETURNING id',
       [data.name, data.price, data.emoji, data.category_id, stock > 0 ? 1 : 0, stock]
     );
-    const id = res.lastInsertRowId;
+    const id = res!.id;
     // Push new item to Firebase menu control + stock levels
     pushMenuItem(id, { name: data.name, price: data.price, emoji: data.emoji, is_available: stock > 0 });
     const r = await db.getFirstAsync<any>(
@@ -89,7 +93,7 @@ export const menuAPI = {
        FROM menu_items m LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?`, [id]
     );
     if (r) {
-      pushStock(rowToStockItem(r));
+      pushStockFull(rowToStockItem(r));
     }
     return id;
   },
@@ -111,6 +115,12 @@ export const menuAPI = {
     if (fields.length === 0) return;
     values.push(id);
     await db.runAsync(`UPDATE menu_items SET ${fields.join(', ')} WHERE id = ?`, values);
+    // Edits are the one place this device's name/price/emoji are authoritative —
+    // push the full record (stock pushes no longer carry these fields).
+    const row = await db.getFirstAsync<any>(`
+      SELECT m.*, c.name as category_name FROM menu_items m
+      LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?`, [id]);
+    if (row) pushStockFull(rowToStockItem(row));
   },
 
   updateAvailability: async (id: number, is_available: boolean): Promise<MenuItem> => {
@@ -480,7 +490,7 @@ export const csvAPI = {
 };
 
 export const aiAPI = {
-  chat: async () => ({ response: '' }),
+  chat: async (_message: string, _history: { role: string; content: string }[]) => ({ response: '' }),
   generateEOD: async () => ({ report: '' }),
   getForecast: async () => ({}),
 };
