@@ -332,7 +332,8 @@ export default function SettingsScreen() {
       await loadMenu();
       bumpMenuRefresh();
       bumpDashRefresh();
-      Alert.alert('Synced from Cloud', `Menu: ${res.menu} · Stock: ${res.stock} · Orders: ${res.orders}`);
+      Alert.alert('Synced from Cloud', `Menu: ${res.menu} · Stock: ${res.stock} · Orders: ${res.orders}` +
+        (res.uploaded ? `\n\nUploaded ${res.uploaded} sale(s) from this phone that were missing in the cloud.` : ''));
     } catch {
       Alert.alert('Sync failed', 'Check your internet connection and try again.');
     } finally {
@@ -572,7 +573,7 @@ export default function SettingsScreen() {
 
         {/* About */}
         <Section title="About">
-          <SettingRow label="App Version" value="1.1.3" icon="information-circle-outline" />
+          <SettingRow label="App Version" value="1.1.4" icon="information-circle-outline" />
           <SettingRow label="Logged in as" value={`${deviceName} (${role ?? '?'})`} icon="person-outline" />
           <SettingRow label="Built by" value="VJ Dechavez" icon="code-slash-outline" last />
         </Section>

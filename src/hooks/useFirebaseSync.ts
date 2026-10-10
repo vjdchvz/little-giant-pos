@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { listenOrders, listenStock, listenMenu, flushPendingSyncs } from '../services/firebaseSync';
-import { applyStockToSQLite, applyMenuToSQLite, applyOrdersToSQLite, archiveMissingLocally } from '../services/cloudSync';
+import { applyStockToSQLite, applyMenuToSQLite, applyOrdersToSQLite, archiveMissingLocally, pushMissingOrders } from '../services/cloudSync';
 import { useDashboardStore, useStockStore, useMenuStore } from '../store';
 import { Order } from '../types';
 import { StockItem } from '../services/localApi';
@@ -41,9 +41,11 @@ export function useFirebaseSync() {
 
     // Offline outbox: flush queued writes on launch, when app returns to
     // foreground, and on a slow interval (covers reconnect while app is open).
+    // Also upload any local sale the cloud is missing (launch + foreground).
     flushPendingSyncs();
+    pushMissingOrders();
     const appSub = AppState.addEventListener('change', state => {
-      if (state === 'active') flushPendingSyncs();
+      if (state === 'active') { flushPendingSyncs(); pushMissingOrders(); }
     });
     const flushTimer = setInterval(() => { flushPendingSyncs(); }, 30000);
 

@@ -6,7 +6,7 @@ import { StockItem } from './localApi';
 import { enqueue, flushQueue } from './syncQueue';
 
 // ─── Raw senders (throw on failure) ──────────────────────────────────────────
-async function sendOrder(order: any, cashierName?: string): Promise<void> {
+export async function sendOrder(order: any, cashierName?: string): Promise<void> {
   await set(ref(db, `pos_orders/${order.order_number}`), {
     id:             order.id,
     order_number:   order.order_number,
@@ -30,7 +30,7 @@ async function sendOrder(order: any, cashierName?: string): Promise<void> {
   });
 }
 
-async function sendVoid(orderNumber: string, reason: string): Promise<void> {
+export async function sendVoid(orderNumber: string, reason: string): Promise<void> {
   await update(ref(db, `pos_orders/${orderNumber}`), {
     status: 'voided', notes: `VOID: ${reason}`,
   });
@@ -60,14 +60,26 @@ async function sendMenu(id: number, data: any): Promise<void> {
   await update(ref(db, `pos_menu/${id}`), { id, ...data });
 }
 
+// Firebase RTDB writes never reject while offline — they hang until the
+// connection returns, and live only in memory. Without a timeout the catch
+// below never fires, nothing reaches the outbox, and a sale rung up offline is
+// lost from the cloud if the app is closed. Orders/voids are idempotent
+// (set/update by order_number), so a late duplicate replay is harmless.
+export function withTimeout<T>(p: Promise<T>, ms = 8000): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('timeout')), ms);
+    p.then(v => { clearTimeout(t); resolve(v); }, e => { clearTimeout(t); reject(e); });
+  });
+}
+
 // ─── Public pushes (best-effort, queue on failure for offline retry) ─────────
 export async function pushOrder(order: Order, cashierName?: string): Promise<void> {
-  try { await sendOrder(order, cashierName); }
+  try { await withTimeout(sendOrder(order, cashierName)); }
   catch { await enqueue({ type: 'order', order, cashierName }); }
 }
 
 export async function pushVoid(orderNumber: string, reason: string): Promise<void> {
-  try { await sendVoid(orderNumber, reason); }
+  try { await withTimeout(sendVoid(orderNumber, reason)); }
   catch { await enqueue({ type: 'void', orderNumber, reason }); }
 }
 

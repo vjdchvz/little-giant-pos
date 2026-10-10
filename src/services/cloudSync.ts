@@ -5,6 +5,7 @@ import { db as fdb } from './firebase';
 import { getDB, withWriteLock } from '../db';
 import { Order } from '../types';
 import { StockItem } from './localApi';
+import { sendOrder, sendVoid, withTimeout } from './firebaseSync';
 
 // pos_stock always carries the FULL current set of items — any menu_item id
 // missing from it (e.g. deleted from the web admin or another device) is
@@ -109,8 +110,40 @@ export async function applyOrdersToSQLite(orders: Order[]) {
   } catch (e) { console.warn('[Sync] applyOrders failed:', e); }
 }
 
+// Upload local orders the cloud doesn't have (and voids it hasn't seen).
+// SQLite is the source of truth for sales: a sale rung up offline, or while a
+// push hung/failed and the app was then closed, otherwise never reaches the
+// web admin. Safe to run repeatedly — writes are keyed by order_number.
+// Returns how many orders were uploaded.
+let reconciling = false;
+export async function pushMissingOrders(cloudOrders?: Record<string, any> | null): Promise<number> {
+  if (reconciling) return 0;
+  reconciling = true;
+  let pushed = 0;
+  try {
+    const cloud = cloudOrders ?? (await withTimeout(get(ref(fdb, 'pos_orders')), 15000)).val() ?? {};
+    const db = await getDB();
+    const rows = await db.getAllAsync<any>(
+      `SELECT * FROM orders WHERE created_at >= datetime('now','localtime','-60 days') ORDER BY id`
+    );
+    for (const o of rows) {
+      const c = cloud[o.order_number];
+      if (!c) {
+        const items = await db.getAllAsync<any>('SELECT * FROM order_items WHERE order_id = ?', [o.id]);
+        await withTimeout(sendOrder({ ...o, items }, o.cashier_name ?? undefined));
+        pushed++;
+      } else if (o.status === 'voided' && c.status !== 'voided') {
+        await withTimeout(sendVoid(o.order_number, String(o.notes ?? '').replace(/^VOID:\s*/, '')));
+        pushed++;
+      }
+    }
+  } catch (e) { console.warn('[Sync] pushMissingOrders stopped:', e); }
+  finally { reconciling = false; }
+  return pushed;
+}
+
 // One-shot pull: read the whole cloud DB and write it into local SQLite.
-export async function pullFromCloud(): Promise<{ stock: number; menu: number; orders: number }> {
+export async function pullFromCloud(): Promise<{ stock: number; menu: number; orders: number; uploaded: number }> {
   const [stockSnap, menuSnap, ordersSnap] = await Promise.all([
     get(ref(fdb, 'pos_stock')),
     get(ref(fdb, 'pos_menu')),
@@ -125,5 +158,7 @@ export async function pullFromCloud(): Promise<{ stock: number; menu: number; or
   if (menu.length) await applyMenuToSQLite(menu);
   if (orders.length) await applyOrdersToSQLite(orders);
 
-  return { stock: stock.length, menu: menu.length, orders: orders.length };
+  const uploaded = await pushMissingOrders(ordersSnap.val() ?? {});
+
+  return { stock: stock.length, menu: menu.length, orders: orders.length, uploaded };
 }
